@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>POS Terminal – Grocery Inventory</title>
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="pos.css" />
+  <script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+</head>
+<body>
+
+<!-- Header -->
+<header>
+  <h1><span>🖥️</span> POS Terminal &mdash; <span id="storeNameDisplay" class="store-name-h"></span></h1>
+  <div class="header-right">
+    <a href="index.html"   class="btn-back-inv">← Inventory</a>
+    <a href="reports.html" class="btn-back-inv">📊 Reports</a>
+    <span class="date-badge" id="posDateTime"></span>
+  </div>
+</header>
+
+<!-- Mobile Tab Bar (hidden on desktop) -->
+<div class="mob-tabs" id="mobTabs">
+  <button class="mob-tab active" id="tabScan" onclick="showTab('scan')">📷 Scan &amp; Search</button>
+  <button class="mob-tab" id="tabCart" onclick="showTab('cart')">
+    🛒 Cart <span class="mob-cart-count" id="mobCartCount">0</span>
+  </button>
+</div>
+
+<!-- Main Layout -->
+<div class="pos-layout">
+
+  <!-- LEFT: Scanner + Search + Settings -->
+  <div class="pos-col pos-left">
+
+    <!-- QR Scanner -->
+    <div class="pcard">
+      <div class="pcard-head">
+        <span class="pcard-title">📷 QR Scanner</span>
+        <button class="btn btn-primary" id="scanBtn" onclick="toggleScanner()">▶ Start Scanner</button>
+      </div>
+      <div id="qr-reader"></div>
+      <div id="scanFeedback" class="scan-feedback"></div>
+    </div>
+
+    <!-- Manual Search -->
+    <div class="pcard">
+      <div class="pcard-head">
+        <span class="pcard-title">🔍 Add Item Manually</span>
+      </div>
+      <input type="text" id="posSearch" class="pos-search-input"
+             placeholder="Search by item name or category…"
+             oninput="renderSearchResults()" />
+      <div id="searchResults" class="search-results-wrap"></div>
+    </div>
+
+    <!-- Settings -->
+    <div class="pcard">
+      <div class="pcard-head">
+        <span class="pcard-title">⚙️ Settings</span>
+      </div>
+      <div class="settings-body">
+        <div class="setting-row">
+          <label>Store Name</label>
+          <input type="text" id="storeNameInput" placeholder="GROCERY STORE" />
+        </div>
+        <div class="setting-row">
+          <label>Tax Rate (%)</label>
+          <input type="number" id="taxRateInput" value="0" min="0" max="100" step="0.1"
+                 oninput="updateTotals()" />
+        </div>
+        <button class="btn btn-ghost" style="width:100%;margin-top:4px" onclick="saveSettings()">
+          💾 Save Settings
+        </button>
+      </div>
+    </div>
+
+  </div><!-- /pos-left -->
+
+  <!-- RIGHT: Cart -->
+  <div class="pos-col pos-right">
+    <div class="pcard cart-pcard">
+
+      <!-- Cart Header -->
+      <div class="pcard-head">
+        <span class="pcard-title">🛒 Cart</span>
+        <span id="cartBadge" class="cart-badge">0 items</span>
+      </div>
+
+      <!-- Cart Items -->
+      <div id="cartList" class="cart-list">
+        <div class="cart-empty" id="cartEmpty">
+          <div style="font-size:2.8rem">🛒</div>
+          <p>Cart is empty</p>
+          <small>Scan a QR code or search items to add</small>
+        </div>
+      </div>
+
+      <!-- Totals -->
+      <div class="cart-totals">
+        <div class="total-row">
+          <span>Subtotal</span>
+          <span id="totSubtotal">₱0.00</span>
+        </div>
+        <div class="total-row">
+          <span>Tax (<span id="taxRateLbl">0</span>%)</span>
+          <span id="totTax">₱0.00</span>
+        </div>
+        <div class="total-row total-grand">
+          <span>TOTAL</span>
+          <span id="totGrand">₱0.00</span>
+        </div>
+      </div>
+
+      <!-- Cart Buttons -->
+      <div class="cart-btns">
+        <button class="btn btn-ghost" onclick="clearCart()">🗑 Clear</button>
+        <button class="btn btn-primary checkout-btn" id="checkoutBtn"
+                onclick="openPayModal()" disabled>
+          💰 Checkout
+        </button>
+      </div>
+
+    </div><!-- /cart-pcard -->
+  </div><!-- /pos-right -->
+
+</div><!-- /pos-layout -->
+
+<!-- Toast Container -->
+<div id="toastWrap" class="toast-wrap"></div>
+
+<!-- ── Payment Modal ─────────────────────────────────────── -->
+<div class="modal-overlay" id="payModal">
+  <div class="modal" style="max-width:420px">
+    <div class="modal-header">
+      <h2>💳 Payment</h2>
+      <button class="modal-close" onclick="closePayModal()">✕</button>
+    </div>
+    <div class="modal-body">
+
+      <div class="pay-total-box">
+        <span>Total Amount Due</span>
+        <strong id="payTotalAmt">₱0.00</strong>
+      </div>
+
+      <div class="form-group" style="margin-bottom:18px">
+        <label>Payment Method</label>
+        <div class="pay-method-row">
+          <button class="pay-method-btn active" id="btnCash" onclick="setPayMethod('cash')">💵 Cash</button>
+          <button class="pay-method-btn"        id="btnCard" onclick="setPayMethod('card')">💳 Card</button>
+        </div>
+      </div>
+
+      <div id="cashSection" class="form-group">
+        <label>Cash Received (₱)</label>
+        <input type="number" id="cashIn" min="0" step="0.01"
+               placeholder="0.00" oninput="calcChange()"
+               style="font-size:1.3rem;font-weight:700;text-align:right" />
+        <div id="changeRow" class="change-row" style="display:none">
+          <span>Change</span>
+          <strong id="changeAmt">₱0.00</strong>
+        </div>
+      </div>
+
+      <div id="cardSection" class="card-notice" style="display:none">
+        💳 Process payment on your card terminal, then click Complete Sale.
+      </div>
+
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closePayModal()">Cancel</button>
+      <button class="btn btn-primary" id="completeSaleBtn" onclick="completeSale()">
+        ✓ Complete Sale
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Receipt Modal ─────────────────────────────────────── -->
+<div class="modal-overlay" id="receiptModal">
+  <div class="receipt-modal-box">
+    <div class="receipt-modal-bar">
+      <span style="font-weight:700;color:#2d6a4f;font-size:1rem">✅ Sale Complete!</span>
+      <div style="display:flex;gap:10px">
+        <button class="btn btn-ghost" onclick="newSale()">+ New Sale</button>
+        <button class="btn btn-ghost" onclick="downloadReceiptImage()" id="dlImgBtn">📥 Save Image</button>
+        <button class="btn btn-primary" onclick="printReceipt()">🖨️ Print Receipt</button>
+      </div>
+    </div>
+    <div id="receiptPreview" class="receipt-preview"></div>
+  </div>
+</div>
+
+<!-- Print-only area -->
+<div id="printArea" class="print-only"></div>
+
+<script src="pos.js"></script>
+</body>
+</html>

@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Grocery Inventory</title>
+  <link rel="stylesheet" href="styles.css" />
+  <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.6.0/dist/jspdf.plugin.autotable.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+</head>
+<body>
+
+<!-- Header -->
+<header>
+  <h1><span>🛒</span> Grocery Inventory</h1>
+  <div class="header-right">
+    <a href="pos.html"     class="btn-pos-nav">🖥️ POS Terminal</a>
+    <a href="reports.html" class="btn-pos-nav">📊 Reports</a>
+    <span class="date-badge" id="currentDate"></span>
+  </div>
+</header>
+
+<div class="container">
+
+  <!-- Stats -->
+  <div class="stats-grid">
+    <div class="stat-card">
+      <div class="stat-icon total">📦</div>
+      <div class="stat-info"><p>Total Items</p><h2 class="c-total" id="statTotal">0</h2></div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon fresh">✅</div>
+      <div class="stat-info"><p>Fresh</p><h2 class="c-fresh" id="statFresh">0</h2></div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon warning">⚠️</div>
+      <div class="stat-info"><p>Expiring Soon</p><h2 class="c-warning" id="statWarn">0</h2></div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon expired">❌</div>
+      <div class="stat-info"><p>Expired</p><h2 class="c-expired" id="statExpired">0</h2></div>
+    </div>
+  </div>
+
+  <!-- Alert Banner -->
+  <div class="alert-banner" id="alertBanner">
+    <span>⚠️</span>
+    <div><strong>Attention:</strong> <span id="alertText"></span></div>
+  </div>
+
+  <!-- Toolbar -->
+  <div class="toolbar">
+    <input type="text" id="searchInput" placeholder="🔍  Search items…" oninput="renderItems()" />
+    <select id="filterCategory" onchange="renderItems()">
+      <option value="">All Categories</option>
+      <option>Fruits & Vegetables</option>
+      <option>Dairy & Eggs</option>
+      <option>Meat & Seafood</option>
+      <option>Bakery & Bread</option>
+      <option>Frozen Foods</option>
+      <option>Canned & Dry Goods</option>
+      <option>Beverages</option>
+      <option>Snacks & Sweets</option>
+      <option>Condiments & Spices</option>
+      <option>Cleaning Supplies</option>
+      <option>Personal Care</option>
+      <option>Other</option>
+    </select>
+    <select id="filterStatus" onchange="renderItems()">
+      <option value="">All Status</option>
+      <option value="fresh">Fresh</option>
+      <option value="warning">Expiring Soon</option>
+      <option value="expired">Expired</option>
+    </select>
+    <select id="sortBy" onchange="renderItems()">
+      <option value="name">Sort: Name</option>
+      <option value="expiry">Sort: Expiry Date</option>
+      <option value="added">Sort: Date Added</option>
+      <option value="qty">Sort: Quantity</option>
+    </select>
+    <button class="btn btn-primary" onclick="openAddModal()">+ Add Item</button>
+    <div class="toolbar-divider"></div>
+    <button class="btn btn-excel" onclick="exportExcel()" title="Export to Excel">📊 Excel</button>
+    <button class="btn btn-pdf"   onclick="exportPDF()"   title="Export to PDF">📄 PDF</button>
+    <button class="btn btn-ghost" onclick="printAllQRStickers()" title="Print QR stickers for all items">🏷️ Print Stickers</button>
+  </div>
+
+  <!-- Items Grid -->
+  <div class="items-grid" id="itemsGrid"></div>
+  <div class="empty-state" id="emptyState">
+    <div class="big-icon">🥦</div>
+    <p>No items found. Add your first grocery item!</p>
+  </div>
+
+</div>
+
+<!-- Add/Edit Modal -->
+<div class="modal-overlay" id="itemModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 id="modalTitle">Add Item</h2>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="form-group full">
+          <label>Item Name *</label>
+          <input type="text" id="fName" placeholder="e.g. Whole Milk" />
+        </div>
+        <div class="form-group">
+          <label>Category *</label>
+          <select id="fCategory">
+            <option value="">Select…</option>
+            <option>Fruits & Vegetables</option>
+            <option>Dairy & Eggs</option>
+            <option>Meat & Seafood</option>
+            <option>Bakery & Bread</option>
+            <option>Frozen Foods</option>
+            <option>Canned & Dry Goods</option>
+            <option>Beverages</option>
+            <option>Snacks & Sweets</option>
+            <option>Condiments & Spices</option>
+            <option>Cleaning Supplies</option>
+            <option>Personal Care</option>
+            <option>Other</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Quantity *</label>
+          <input type="number" id="fQty" min="0.01" step="0.01" placeholder="1" />
+        </div>
+        <div class="form-group">
+          <label>Unit</label>
+          <select id="fUnit">
+            <option>pcs</option>
+            <option>kg</option>
+            <option>g</option>
+            <option>L</option>
+            <option>mL</option>
+            <option>pack</option>
+            <option>box</option>
+            <option>can</option>
+            <option>bottle</option>
+            <option>bag</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Cost Price / Unit (₱)</label>
+          <input type="number" id="fCostPrice" min="0" step="0.01" placeholder="0.00" />
+        </div>
+        <div class="form-group">
+          <label>Retail Price / Unit (₱)</label>
+          <input type="number" id="fRetailPrice" min="0" step="0.01" placeholder="0.00" />
+        </div>
+        <div class="form-group">
+          <label>Expiration Date *</label>
+          <input type="date" id="fExpiry" />
+        </div>
+        <div class="form-group">
+          <label>Location</label>
+          <select id="fLocation">
+            <option>Pantry</option>
+            <option>Refrigerator</option>
+            <option>Freezer</option>
+            <option>Counter</option>
+            <option>Cabinet</option>
+          </select>
+        </div>
+        <div class="form-group full">
+          <label>Notes</label>
+          <input type="text" id="fNotes" placeholder="Optional notes…" />
+        </div>
+
+        <!-- Image Capture -->
+        <div class="form-group full">
+          <label>Item Photo</label>
+          <div class="img-capture-area">
+            <div class="img-preview" id="imgPreview">
+              <div class="img-preview-placeholder">📷</div>
+            </div>
+            <div class="img-btns">
+              <label class="img-btn-label" for="fImageFile">📁 Choose Photo</label>
+              <label class="img-btn-label" for="fImageCamera">📷 Take Photo</label>
+            </div>
+            <input type="file" id="fImageFile"   accept="image/*"                      style="display:none" onchange="handleImageFile(this)">
+            <input type="file" id="fImageCamera" accept="image/*" capture="environment" style="display:none" onchange="handleImageFile(this)">
+            <button type="button" class="img-clear-btn" id="imgClearBtn" onclick="clearImage()" style="display:none">Remove photo</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveItem()">Save Item</button>
+    </div>
+  </div>
+</div>
+
+<!-- QR Code Modal -->
+<div class="modal-overlay" id="qrModal">
+  <div class="modal" style="max-width:340px">
+    <div class="modal-header">
+      <h2>📱 Item QR Code</h2>
+      <button class="modal-close" onclick="closeQRModal()">✕</button>
+    </div>
+    <div class="modal-body" style="text-align:center;padding:24px">
+      <div id="qrItemName" style="font-weight:700;font-size:1rem;margin-bottom:6px"></div>
+      <div id="qrItemSub" style="font-size:0.78rem;color:var(--text-muted);margin-bottom:16px"></div>
+      <canvas id="qrCanvas" style="border:1px solid var(--border);border-radius:8px;padding:8px"></canvas>
+      <p style="font-size:0.7rem;color:var(--text-muted);margin-top:12px">
+        Scan this code in the POS terminal to add this item to the cart.
+      </p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeQRModal()">Close</button>
+      <button class="btn btn-primary" onclick="printQRLabel()">🖨️ Print Label</button>
+    </div>
+  </div>
+</div>
+
+<!-- Delete Confirm Modal -->
+<div class="modal-overlay" id="confirmModal">
+  <div class="confirm-modal">
+    <div class="icon">🗑️</div>
+    <h3>Delete Item?</h3>
+    <p id="confirmText">This action cannot be undone.</p>
+    <div class="confirm-btns">
+      <button class="btn btn-ghost" onclick="closeConfirm()">Cancel</button>
+      <button class="btn btn-danger" onclick="confirmDelete()">Delete</button>
+    </div>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
