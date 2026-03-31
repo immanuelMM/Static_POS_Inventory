@@ -143,7 +143,20 @@
   transition: background 0.15s;
 }
 .sr-add-btn:hover { background: #0D5C55; }
+.sr-add-btn:disabled { background: #CBD5E1; cursor: not-allowed; }
 .search-empty-msg { padding: 28px 20px; text-align: center; color: #94A3B8; font-size: 0.85rem; font-weight: 500; }
+
+/* Promo search results */
+.promo-sr { background: #FFFBEB; }
+.promo-sr:hover { background: #FEF3C7; }
+.sr-disabled { opacity: 0.5; cursor: default; }
+.sr-disabled:hover { background: #FFFBEB; }
+.sr-promo-tag {
+  display: inline-block; font-size: 0.58rem; font-weight: 800;
+  background: #F59E0B; color: #fff; border-radius: 4px;
+  padding: 1px 5px; vertical-align: middle; letter-spacing: 0.4px;
+  text-transform: uppercase; margin-left: 4px;
+}
 
 /* ── Cart Panel ─────────────────────────────────────────── */
 .cart-pcard {

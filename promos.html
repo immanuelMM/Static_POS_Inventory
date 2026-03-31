@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Promotions — GroceryPOS</title>
+  <link rel="stylesheet" href="admin.css" />
+  <style>
+    /* ── Promos Grid ─────────────────────────────────────── */
+    .promos-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 14px;
+    }
+
+    .promo-card {
+      background: var(--surface);
+      border: 1px solid var(--border-light);
+      border-radius: var(--r-lg);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      display: flex; flex-direction: column;
+      transition: box-shadow 0.15s;
+    }
+    .promo-card:hover { box-shadow: 0 4px 18px rgba(0,0,0,0.1); }
+    .promo-card.inactive { opacity: 0.6; }
+
+    .promo-card-head {
+      padding: 14px 16px 10px;
+      display: flex; align-items: flex-start; justify-content: space-between; gap: 8px;
+      border-bottom: 1px solid var(--border-light);
+    }
+    .promo-card-title-wrap { flex: 1; min-width: 0; }
+    .promo-name { font-size: 1rem; font-weight: 800; color: var(--text); line-height: 1.2; }
+    .promo-desc { font-size: 0.76rem; color: var(--text-muted); margin-top: 3px; }
+    .inactive-badge {
+      display: inline-block; font-size: 0.65rem; font-weight: 700;
+      background: #FEE2E2; color: #DC2626; border-radius: 20px;
+      padding: 1px 8px; margin-top: 3px; letter-spacing: 0.5px; text-transform: uppercase;
+    }
+    .promo-actions { display: flex; gap: 4px; flex-shrink: 0; }
+
+    /* Bundle items inside card */
+    .promo-items-list { padding: 10px 16px; flex: 1; }
+    .promo-item-row {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 0.81rem; padding: 4px 0;
+      border-bottom: 1px solid var(--border-light);
+    }
+    .promo-item-row:last-child { border-bottom: none; }
+    .pi-qty  { font-weight: 800; color: var(--primary); min-width: 22px; }
+    .pi-name { flex: 1; color: var(--text); }
+    .pi-price{ font-weight: 700; color: var(--text-muted); white-space: nowrap; }
+    .promo-no-items { font-size: 0.78rem; color: var(--text-muted); font-style: italic; }
+
+    /* Footer: pricing + stock */
+    .promo-footer {
+      padding: 10px 16px 14px;
+      background: #FAFAFA;
+      border-top: 1px solid var(--border-light);
+      display: flex; align-items: center; justify-content: space-between; gap: 8px;
+      flex-wrap: wrap;
+    }
+    .promo-pricing { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .normal-price {
+      font-size: 0.78rem; color: var(--text-muted); text-decoration: line-through; font-weight: 500;
+    }
+    .promo-price-tag {
+      font-size: 1.25rem; font-weight: 900; color: var(--primary); letter-spacing: -0.5px;
+    }
+    .savings-badge {
+      background: #DCFCE7; color: #166534; border: 1px solid #BBF7D0;
+      font-size: 0.68rem; font-weight: 700; padding: 2px 8px;
+      border-radius: 20px; letter-spacing: 0.3px;
+    }
+    .stock-badge {
+      font-size: 0.71rem; font-weight: 700; padding: 3px 10px; border-radius: 20px;
+    }
+    .stock-badge.ok  { background: #F0FDFA; color: var(--primary-dark); border: 1px solid #CCFBF1; }
+    .stock-badge.out { background: #FEF2F2; color: #DC2626; border: 1px solid #FECACA; }
+
+    /* ── Promo Modal ─────────────────────────────────────── */
+    .promo-modal { max-width: 680px; }
+
+    .promo-form-top {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+      margin-bottom: 16px;
+    }
+    .promo-form-top .full { grid-column: 1 / -1; }
+
+    .active-toggle-row {
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 0;
+    }
+    .toggle-switch {
+      position: relative; width: 40px; height: 22px; cursor: pointer;
+    }
+    .toggle-switch input { opacity: 0; width: 0; height: 0; }
+    .toggle-slider {
+      position: absolute; inset: 0; background: #CBD5E1; border-radius: 22px;
+      transition: background 0.2s;
+    }
+    .toggle-slider::before {
+      content: ''; position: absolute; width: 16px; height: 16px;
+      left: 3px; top: 3px; background: #fff; border-radius: 50%;
+      transition: transform 0.2s; box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+    }
+    .toggle-switch input:checked + .toggle-slider { background: var(--primary); }
+    .toggle-switch input:checked + .toggle-slider::before { transform: translateX(18px); }
+    .toggle-label { font-size: 0.84rem; font-weight: 600; color: var(--text); }
+
+    /* Price row */
+    .price-row { display: flex; align-items: center; gap: 10px; }
+    .price-prefix {
+      font-size: 1.1rem; font-weight: 700; color: var(--primary);
+      background: #F0FDFA; border: 1px solid #CCFBF1; border-radius: var(--r);
+      padding: 8px 12px; white-space: nowrap;
+    }
+    .normal-total-hint {
+      font-size: 0.76rem; color: var(--text-muted); margin-top: 4px; font-weight: 500;
+    }
+
+    /* Divider */
+    .modal-section-label {
+      font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px;
+      color: var(--text-muted); margin: 16px 0 8px;
+    }
+
+    /* Item search within modal */
+    .bundle-picker-wrap {
+      border: 1px solid var(--border); border-radius: var(--r-lg); overflow: hidden;
+    }
+    .bundle-search-bar {
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--border-light);
+      background: #FAFAFA;
+    }
+    .bundle-search-bar input {
+      width: 100%; border: none; background: transparent;
+      font-size: 0.86rem; font-family: inherit; color: var(--text); outline: none;
+    }
+    .bundle-search-results { max-height: 180px; overflow-y: auto; }
+    .bundle-pick-item {
+      padding: 9px 14px; cursor: pointer; border-bottom: 1px solid var(--border-light);
+      transition: background 0.1s;
+    }
+    .bundle-pick-item:last-child { border-bottom: none; }
+    .bundle-pick-item:hover { background: #F0FDFA; }
+    .bpi-name { font-size: 0.84rem; font-weight: 700; color: var(--text); }
+    .bpi-meta { font-size: 0.72rem; color: var(--text-muted); margin-top: 2px; }
+    .bsr-empty { padding: 12px 14px; font-size: 0.8rem; color: var(--text-muted); font-style: italic; }
+
+    /* Selected bundle items */
+    .bundle-items-list { margin-top: 10px; }
+    .bundle-empty-hint {
+      font-size: 0.8rem; color: var(--text-muted); font-style: italic; padding: 6px 0;
+    }
+    .bundle-item-row {
+      display: flex; align-items: center; justify-content: space-between; gap: 8px;
+      padding: 8px 0; border-bottom: 1px solid var(--border-light);
+    }
+    .bundle-item-row:last-child { border-bottom: none; }
+    .bir-info { flex: 1; min-width: 0; }
+    .bir-name  { font-size: 0.84rem; font-weight: 700; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .bir-price { font-size: 0.75rem; color: var(--primary); font-weight: 700; margin-top: 2px; }
+    .bir-controls { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+    .bir-qty-label { font-size: 0.7rem; color: var(--text-muted); font-weight: 600; }
+    .bir-qty-input {
+      width: 52px; padding: 5px 6px; border: 1px solid var(--border); border-radius: var(--r);
+      font-size: 0.84rem; font-weight: 700; font-family: inherit; text-align: center;
+      background: var(--bg); color: var(--text);
+    }
+    .bir-del {
+      background: none; border: none; cursor: pointer; color: var(--danger);
+      font-size: 0.8rem; padding: 4px 6px; border-radius: var(--r);
+      transition: background 0.1s;
+    }
+    .bir-del:hover { background: #FEE2E2; }
+
+    /* Empty state */
+    .promos-empty { text-align: center; padding: 60px 20px; }
+    .promos-empty .big-icon { font-size: 3.5rem; margin-bottom: 14px; opacity: 0.5; }
+    .promos-empty p { font-size: 0.9rem; color: var(--text-muted); font-weight: 500; }
+
+    @media (max-width: 600px) {
+      .promo-form-top { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="admin-wrap">
+
+  <!-- ── Sidebar ─────────────────────────────────────────── -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-icon">🛒</div>
+      <div class="logo-text">
+        <span class="logo-name">GroceryPOS</span>
+        <span class="logo-sub">Admin Panel</span>
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-section-label">Main</div>
+      <a href="index.html" class="nav-item">
+        <span class="nav-icon">📦</span>
+        <span class="nav-label">Inventory</span>
+      </a>
+      <a href="pos.html" class="nav-item">
+        <span class="nav-icon">🖥️</span>
+        <span class="nav-label">POS Terminal</span>
+      </a>
+      <a href="reports.html" class="nav-item">
+        <span class="nav-icon">📊</span>
+        <span class="nav-label">Reports</span>
+      </a>
+      <a href="promos.html" class="nav-item active">
+        <span class="nav-icon">🎁</span>
+        <span class="nav-label">Promotions</span>
+      </a>
+    </div>
+
+    <div class="sidebar-footer">
+      <div class="sidebar-store">
+        <div class="sidebar-store-avatar">🏪</div>
+        <span class="sidebar-store-name" id="sidebarStoreName">Grocery Store</span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Overlay (mobile) -->
+  <div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
+
+  <!-- ── Main Area ───────────────────────────────────────── -->
+  <div class="main-area">
+
+    <!-- Topbar -->
+    <div class="topbar">
+      <button class="topbar-hamburger" id="hamburger" onclick="toggleSidebar()" aria-label="Menu">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <line x1="3" y1="6"  x2="21" y2="6"/>
+          <line x1="3" y1="12" x2="21" y2="12"/>
+          <line x1="3" y1="18" x2="21" y2="18"/>
+        </svg>
+      </button>
+      <span class="topbar-title">Promotions</span>
+      <div class="topbar-right">
+        <span class="topbar-date" id="currentDate"></span>
+        <button class="btn btn-primary" onclick="openAddModal()">+ New Promo</button>
+      </div>
+    </div>
+
+    <!-- Page Content -->
+    <div class="page-content">
+
+      <!-- Info bar -->
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px;">
+        <div>
+          <span id="promoCount" style="font-size:0.82rem;color:var(--text-muted);font-weight:600"></span>
+          <span style="font-size:0.8rem;color:var(--text-muted);margin-left:8px;">Bundle products together and sell at a special price. Stock auto-deducts when sold.</span>
+        </div>
+      </div>
+
+      <!-- Promos grid -->
+      <div class="promos-grid" id="promosGrid"></div>
+
+      <!-- Empty -->
+      <div class="promos-empty" id="emptyState" style="display:none">
+        <div class="big-icon">🎁</div>
+        <p>No promotions yet. Create your first bundle deal!</p>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="toastWrap" class="toast-wrap"></div>
+
+<!-- ── Add/Edit Promo Modal ──────────────────────────────── -->
+<div class="modal-overlay" id="promoModal">
+  <div class="modal promo-modal">
+    <div class="modal-header">
+      <h2 id="modalTitle">New Promotion</h2>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+
+      <!-- Basic info -->
+      <div class="promo-form-top">
+        <div class="form-group full">
+          <label>Promotion Name *</label>
+          <input type="text" id="fPromoName" placeholder="e.g. Weekend Bundle Deal" />
+        </div>
+        <div class="form-group full">
+          <label>Description</label>
+          <input type="text" id="fPromoDesc" placeholder="Optional short description…" />
+        </div>
+        <div class="form-group">
+          <label>Promo Price (₱) *</label>
+          <div class="price-row">
+            <span class="price-prefix">₱</span>
+            <input type="number" id="fPromoPrice" min="0" step="0.01" placeholder="0.00" style="flex:1" oninput="updateNormalTotal()" />
+          </div>
+          <div class="normal-total-hint" id="normalTotalSugg"></div>
+        </div>
+        <div class="form-group">
+          <label>Status</label>
+          <div class="active-toggle-row">
+            <label class="toggle-switch">
+              <input type="checkbox" id="fPromoActive" checked />
+              <span class="toggle-slider"></span>
+            </label>
+            <span class="toggle-label">Active (visible in POS)</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Product picker -->
+      <div class="modal-section-label">📦 Bundle Products</div>
+
+      <div class="bundle-picker-wrap">
+        <div class="bundle-search-bar">
+          <input type="text" id="bundleItemSearch" placeholder="Search inventory to add products…"
+                 oninput="renderBundleSearch(this.value)" />
+        </div>
+        <div class="bundle-search-results" id="bundleSearchResults"></div>
+      </div>
+
+      <!-- Selected items -->
+      <div class="bundle-items-list" id="bundleItemsList">
+        <div class="bundle-empty-hint">No products added yet — search and click to add</div>
+      </div>
+
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="savePromo()">💾 Save Promotion</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Delete Confirm ─────────────────────────────────────── -->
+<div class="modal-overlay" id="confirmModal">
+  <div class="confirm-modal">
+    <span class="icon">🗑️</span>
+    <h3>Delete Promotion?</h3>
+    <p id="confirmText">This action cannot be undone.</p>
+    <div class="confirm-btns">
+      <button class="btn btn-ghost" onclick="closeConfirm()">Cancel</button>
+      <button class="btn btn-danger" onclick="confirmDelete()">Delete</button>
+    </div>
+  </div>
+</div>
+
+<script src="promos.js"></script>
+<script>
+  function toggleSidebar() {
+    document.getElementById('sidebar').classList.toggle('open');
+    document.getElementById('sidebarOverlay').classList.toggle('show');
+  }
+  function closeSidebar() {
+    document.getElementById('sidebar').classList.remove('open');
+    document.getElementById('sidebarOverlay').classList.remove('show');
+  }
+  (function() {
+    const s  = JSON.parse(localStorage.getItem('grocery_pos_settings') || '{}');
+    const el = document.getElementById('sidebarStoreName');
+    if (el && s.storeName) el.textContent = s.storeName;
+  })();
+  // Modal overlay close
+  document.getElementById('promoModal').addEventListener('click', function(e) {
+    if (e.target === this) closeModal();
+  });
+  document.getElementById('confirmModal').addEventListener('click', function(e) {
+    if (e.target === this) closeConfirm();
+  });
+</script>
+</body>
+</html>

@@ -5,6 +5,7 @@
 const STORAGE_KEY  = 'grocery_inventory_v1';
 const SETTINGS_KEY = 'grocery_pos_settings';
 const HISTORY_KEY  = 'grocery_sales_history';
+const PROMOS_KEY   = 'grocery_promos_v1';
 
 const CATEGORY_EMOJI = {
   'Fruits & Vegetables': '🥦', 'Dairy & Eggs': '🥛', 'Meat & Seafood': '🥩',
@@ -16,7 +17,8 @@ const CATEGORY_EMOJI = {
 
 // ── State ─────────────────────────────────────────────────
 let inventory      = [];
-let cart           = [];   // { itemId, name, unit, retailPrice, costPrice, qty, maxQty }
+let promos         = [];
+let cart           = [];   // { itemId, name, unit, retailPrice, costPrice, qty, maxQty, [isPromo, promoId, bundleItems] }
 let payMethod      = 'cash';
 let scanner        = null;
 let scannerRunning = false;
@@ -27,6 +29,7 @@ let txnSeq         = 1;
 // ── Init ─────────────────────────────────────────────────
 function init() {
   loadInventory();
+  loadPromos();
   loadSettings();
   updateDateTime();
   setInterval(updateDateTime, 1000);
@@ -45,6 +48,67 @@ function updateDateTime() {
 // ── Inventory ─────────────────────────────────────────────
 function loadInventory()  { inventory = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); }
 function saveInventory()  { localStorage.setItem(STORAGE_KEY, JSON.stringify(inventory)); }
+
+// ── Promos ────────────────────────────────────────────────
+function loadPromos() { promos = JSON.parse(localStorage.getItem(PROMOS_KEY) || '[]'); }
+
+function computePromoMaxBundles(promo) {
+  if (!promo.items || !promo.items.length) return 0;
+  let max = Infinity;
+  for (const bi of promo.items) {
+    const inv = inventory.find(i => i.id === bi.itemId);
+    if (!inv) return 0;
+    const stock = Math.max(0, Number(inv.qty) || 0);
+    max = Math.min(max, Math.floor(stock / bi.qty));
+  }
+  return max === Infinity ? 0 : max;
+}
+
+function addPromoToCart(promoId) {
+  loadInventory();
+  loadPromos();
+  const promo = promos.find(p => p.id === promoId);
+  if (!promo) return showToast('Promotion not found', 'err');
+
+  const maxBundles = computePromoMaxBundles(promo);
+  const existing   = cart.find(c => c.isPromo && c.promoId === promoId);
+  const inCart     = existing ? existing.qty : 0;
+
+  if (inCart >= maxBundles) {
+    showToast(`"${promo.name}" — not enough stock for another bundle`, 'warn');
+    showScanBadge(`⚠️ Out of stock: ${promo.name}`, 'warn');
+    return;
+  }
+
+  // Compute cost sum of all components (1 bundle)
+  let costTotal = 0;
+  promo.items.forEach(bi => {
+    const inv = inventory.find(i => i.id === bi.itemId);
+    if (inv) costTotal += (Number(inv.costPrice) || 0) * bi.qty;
+  });
+
+  if (existing) {
+    existing.qty++;
+  } else {
+    cart.push({
+      isPromo:     true,
+      promoId:     promo.id,
+      itemId:      'promo_' + promo.id, // unique cart key
+      name:        promo.name,
+      unit:        'bundle',
+      retailPrice: Number(promo.promoPrice) || 0,  // used by updateTotals / renderCart
+      costPrice:   costTotal,
+      qty:         1,
+      maxQty:      maxBundles,
+      bundleItems: promo.items.map(bi => ({ itemId: bi.itemId, qty: bi.qty })),
+    });
+  }
+
+  playBeep();
+  showScanBadge(`✅ Added: ${promo.name}`, 'success');
+  showToast(`${promo.name} added to cart`, 'ok');
+  renderCart();
+}
 
 // ── Settings ─────────────────────────────────────────────
 function loadSettings() {
@@ -205,12 +269,15 @@ function renderCart() {
   }
 
   listEl.innerHTML = cart.map(ci => {
-    const line = (ci.retailPrice * ci.qty).toFixed(2);
+    const line    = (ci.retailPrice * ci.qty).toFixed(2);
+    const metaLine = ci.isPromo
+      ? `🎁 Bundle &nbsp;·&nbsp; ₱${ci.retailPrice.toFixed(2)} / bundle &nbsp;·&nbsp; max: ${ci.maxQty}`
+      : `${escHtml(ci.unit)} &nbsp;·&nbsp; ₱${ci.retailPrice.toFixed(2)} each &nbsp;·&nbsp; stock: ${ci.maxQty}`;
     return `
       <div class="cart-item">
         <div class="ci-info">
           <div class="ci-name">${escHtml(ci.name)}</div>
-          <div class="ci-meta">${escHtml(ci.unit)} &nbsp;·&nbsp; ₱${ci.retailPrice.toFixed(2)} each &nbsp;·&nbsp; stock: ${ci.maxQty}</div>
+          <div class="ci-meta">${metaLine}</div>
         </div>
         <div class="ci-qty-ctrl">
           <button class="qty-btn" onclick="changeQty('${ci.itemId}',-1)">−</button>
@@ -240,21 +307,54 @@ function updateTotals() {
 // ── Manual Item Search ────────────────────────────────────
 function renderSearchResults() {
   loadInventory();
-  const q = (document.getElementById('posSearch').value || '').toLowerCase().trim();
+  loadPromos();
+  const q         = (document.getElementById('posSearch').value || '').toLowerCase().trim();
   const container = document.getElementById('searchResults');
 
+  // Active promos matching query
+  const activePromos = promos.filter(p => p.active !== false);
+  let matchPromos = q
+    ? activePromos.filter(p => p.name.toLowerCase().includes(q) || (p.description || '').toLowerCase().includes(q))
+    : activePromos;
+  matchPromos = matchPromos.slice(0, 4);
+
+  // Inventory items with stock
   let list = inventory.filter(i => Number(i.qty) > 0);
   if (q) list = list.filter(i =>
     i.name.toLowerCase().includes(q) || (i.category || '').toLowerCase().includes(q)
   );
-  list = list.slice(0, 10);
+  list = list.slice(0, 8);
 
-  if (!list.length) {
-    container.innerHTML = `<div class="search-empty-msg">${q ? 'No matching in-stock items' : 'Start typing to search items…'}</div>`;
+  if (!matchPromos.length && !list.length) {
+    container.innerHTML = `<div class="search-empty-msg">${q ? 'No matching items or promotions' : 'Start typing to search items…'}</div>`;
     return;
   }
 
-  container.innerHTML = list.map(item => `
+  let html = '';
+
+  // Promo rows
+  if (matchPromos.length) {
+    html += matchPromos.map(promo => {
+      const avail    = computePromoMaxBundles(promo);
+      const disabled = avail <= 0;
+      return `
+        <div class="search-result-item promo-sr${disabled ? ' sr-disabled' : ''}"
+             onclick="${disabled ? '' : `addPromoToCart('${promo.id}')`}">
+          <span class="sr-emoji">🎁</span>
+          <div class="sr-info">
+            <div class="sr-name">${escHtml(promo.name)} <span class="sr-promo-tag">BUNDLE</span></div>
+            <div class="sr-sub">
+              ₱${Number(promo.promoPrice).toFixed(2)} / bundle
+              &nbsp;·&nbsp; ${disabled ? 'Out of stock' : avail + ' bundle' + (avail !== 1 ? 's' : '') + ' available'}
+            </div>
+          </div>
+          <button class="sr-add-btn" ${disabled ? 'disabled' : ''}>+ Add</button>
+        </div>`;
+    }).join('');
+  }
+
+  // Inventory rows
+  html += list.map(item => `
     <div class="search-result-item" onclick="addToCart('${item.id}')">
       <span class="sr-emoji">${CATEGORY_EMOJI[item.category] || '📦'}</span>
       <div class="sr-info">
@@ -267,6 +367,8 @@ function renderSearchResults() {
       <button class="sr-add-btn">+ Add</button>
     </div>`
   ).join('');
+
+  container.innerHTML = html;
 }
 
 // ── Payment ───────────────────────────────────────────────
@@ -331,9 +433,19 @@ function completeSale() {
   // Deduct inventory
   loadInventory();
   cart.forEach(ci => {
-    const idx = inventory.findIndex(i => i.id === ci.itemId);
-    if (idx !== -1) {
-      inventory[idx].qty = Math.max(0, Number(inventory[idx].qty) - ci.qty);
+    if (ci.isPromo) {
+      // Deduct each component of the bundle × number of bundles sold
+      ci.bundleItems.forEach(bi => {
+        const idx = inventory.findIndex(i => i.id === bi.itemId);
+        if (idx !== -1) {
+          inventory[idx].qty = Math.max(0, Number(inventory[idx].qty) - bi.qty * ci.qty);
+        }
+      });
+    } else {
+      const idx = inventory.findIndex(i => i.id === ci.itemId);
+      if (idx !== -1) {
+        inventory[idx].qty = Math.max(0, Number(inventory[idx].qty) - ci.qty);
+      }
     }
   });
   saveInventory();

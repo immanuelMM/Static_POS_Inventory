@@ -606,6 +606,7 @@ document.addEventListener('keydown', e => {
 // ── Export / Import data ──────────────────────────────────
 const HISTORY_KEY  = 'grocery_sales_history';
 const SETTINGS_KEY = 'grocery_pos_settings';
+const PROMOS_KEY   = 'grocery_promos_v1';
 
 function exportData() {
   const payload = {
@@ -614,6 +615,7 @@ function exportData() {
     inventory: JSON.parse(localStorage.getItem(STORAGE_KEY)  || '[]'),
     sales:     JSON.parse(localStorage.getItem(HISTORY_KEY)  || '[]'),
     settings:  JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}'),
+    promos:    JSON.parse(localStorage.getItem(PROMOS_KEY)   || '[]'),
   };
   const blob     = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
   const url      = URL.createObjectURL(blob);
@@ -642,10 +644,13 @@ function importData(input) {
       return;
     }
 
-    const invCount   = parsed.inventory.length;
-    const salesCount = Array.isArray(parsed.sales) ? parsed.sales.length : 0;
+    const invCount    = parsed.inventory.length;
+    const salesCount  = Array.isArray(parsed.sales)  ? parsed.sales.length  : 0;
+    const promoCount  = Array.isArray(parsed.promos) ? parsed.promos.length : 0;
     document.getElementById('importConfirmText').textContent =
-      `Found ${invCount} inventory item${invCount !== 1 ? 's' : ''} and ${salesCount} sales record${salesCount !== 1 ? 's' : ''}. This will replace your current data.`;
+      `Found ${invCount} inventory item${invCount !== 1 ? 's' : ''}, ${salesCount} sales record${salesCount !== 1 ? 's' : ''}` +
+      (promoCount ? `, and ${promoCount} promotion${promoCount !== 1 ? 's' : ''}` : '') +
+      `. This will replace your current data.`;
 
     _pendingImport = parsed;
     document.getElementById('importModal').classList.add('open');
@@ -660,6 +665,8 @@ function confirmImport() {
     localStorage.setItem(HISTORY_KEY,  JSON.stringify(_pendingImport.sales));
   if (_pendingImport.settings && typeof _pendingImport.settings === 'object')
     localStorage.setItem(SETTINGS_KEY, JSON.stringify(_pendingImport.settings));
+  if (Array.isArray(_pendingImport.promos))
+    localStorage.setItem(PROMOS_KEY, JSON.stringify(_pendingImport.promos));
   _pendingImport = null;
   document.getElementById('importModal').classList.remove('open');
   loadItems();
