@@ -141,7 +141,16 @@ function startScanner() {
   scanner = new Html5Qrcode('qr-reader');
   scanner.start(
     { facingMode: 'environment' },
-    { fps: 12, qrbox: { width: 240, height: 240 } },
+    {
+      fps: 15,
+      qrbox: { width: 280, height: 100 },
+      formatsToSupport: [
+        Html5QrcodeSupportedFormats.CODE_128,
+        Html5QrcodeSupportedFormats.CODE_39,
+        Html5QrcodeSupportedFormats.EAN_13,
+        Html5QrcodeSupportedFormats.EAN_8,
+      ],
+    },
     onScanSuccess,
     () => {}
   ).then(() => {

@@ -149,7 +149,6 @@ function renderItems() {
             <p>${escHtml(item.category)} · ${escHtml(item.location)}</p>
           </div>
           <div class="card-actions">
-            <button class="icon-btn qr"     onclick="showQR('${item.id}')" title="Show QR Code">QR</button>
             <button class="icon-btn edit"   onclick="openEditModal('${item.id}')" title="Edit">✏️</button>
             <button class="icon-btn delete" onclick="askDelete('${item.id}', '${escHtml(item.name)}')" title="Delete">🗑️</button>
           </div>
@@ -175,8 +174,20 @@ function renderItems() {
           ${profitBadge ? `<div class="card-row"><span class="label">Profit</span><span class="value">${profitBadge}${margin !== null ? ` <span style="font-size:0.78rem;color:#666">${margin.toFixed(0)}% margin</span>` : ''}</span></div>` : ''}
           ${item.notes ? `<div class="card-row"><span class="label">Notes</span><span class="value" style="font-size:0.8rem;font-weight:400">${escHtml(item.notes)}</span></div>` : ''}
         </div>
+        <div class="card-qr-section">
+          <img id="qri-${item.id}" src="${item.qrDataUrl || ''}" class="card-qr-canvas" alt="QR" />
+          <div class="card-qr-info">
+            <div class="card-qr-name">${escHtml(item.name)}</div>
+            <div class="card-qr-id">#${item.id.slice(-8).toUpperCase()}</div>
+            <div class="card-qr-hint">Scan in POS to sell</div>
+            <button class="card-qr-print-btn" onclick="showQR('${item.id}')">🖨️ Print Label</button>
+          </div>
+        </div>
       </div>`;
   }).join('');
+
+  // Generate + persist QR for any items that don't have one stored yet
+  list.filter(i => !i.qrDataUrl).forEach(i => generateAndStoreQR(i.id));
 
   updateStats();
 }
@@ -292,21 +303,69 @@ function saveItem() {
   if (!qty || qty <= 0) return alert('Please enter a valid quantity.');
   if (!expiry)          return alert('Please select an expiration date.');
 
+  let savedId;
   if (editingId) {
     const idx = items.findIndex(i => i.id === editingId);
-    if (idx !== -1) items[idx] = { ...items[idx], name, category, qty, unit, expiry, location, notes, costPrice, retailPrice, image: currentImage || items[idx].image || null };
+    if (idx !== -1) {
+      items[idx] = { ...items[idx], name, category, qty, unit, expiry, location, notes, costPrice, retailPrice, image: currentImage || items[idx].image || null };
+      savedId = items[idx].id;
+    }
   } else {
-    items.push({
+    const newItem = {
       id: 'item_' + Date.now() + '_' + Math.random().toString(36).slice(2,7),
       name, category, qty, unit, expiry, location, notes, costPrice, retailPrice,
       image: currentImage || null,
       addedAt: Date.now()
-    });
+    };
+    items.push(newItem);
+    savedId = newItem.id;
   }
 
   saveItems();
   closeModal();
   renderItems();
+
+  // Auto-generate and persist QR code for this item
+  if (savedId) generateAndStoreQR(savedId);
+}
+
+// ── Barcode generation (JsBarcode — no conflict with html5-qrcode) ──
+function makeBarcodeDataUrl(value) {
+  try {
+    const canvas = document.createElement('canvas');
+    JsBarcode(canvas, value, {
+      format:       'CODE128',
+      width:        2,
+      height:       70,
+      displayValue: false,
+      margin:       8,
+      background:   '#ffffff',
+      lineColor:    '#0F4C35',
+    });
+    return canvas.toDataURL('image/png');
+  } catch (e) {
+    console.warn('Barcode generation error:', e);
+    return '';
+  }
+}
+
+function generateAndStoreQR(itemId) {
+  const dataUrl = makeBarcodeDataUrl(itemId);
+  if (!dataUrl) return;
+  const idx = items.findIndex(i => i.id === itemId);
+  if (idx !== -1) {
+    items[idx].qrDataUrl = dataUrl;
+    saveItems();
+    const imgEl = document.getElementById('qri-' + itemId);
+    if (imgEl) imgEl.src = dataUrl;
+  }
+}
+
+// Regenerate barcodes for all items (replaces any old QR data URLs too)
+function generateMissingQRCodes() {
+  items.forEach(i => {
+    if (!i.qrDataUrl) generateAndStoreQR(i.id);
+  });
 }
 
 // ── Delete ─────────────────────────────────────────────────
@@ -480,11 +539,19 @@ function showQR(id) {
   if (!item) return;
   document.getElementById('qrItemName').textContent = item.name;
   document.getElementById('qrItemSub').textContent  = item.category + ' · ' + item.location + (item.retailPrice > 0 ? ' · ₱' + Number(item.retailPrice).toFixed(2) : '');
-  const canvas = document.getElementById('qrCanvas');
-  QRCode.toCanvas(canvas, item.id, { width: 200, margin: 1, color: { dark: '#1b4332', light: '#fff' } }, err => {
-    if (err) console.error(err);
-  });
   document.getElementById('qrModal').classList.add('open');
+
+  const imgEl = document.getElementById('qrCanvas');
+  if (item.qrDataUrl) {
+    imgEl.src = item.qrDataUrl;
+  } else {
+    const dataUrl = makeBarcodeDataUrl(item.id);
+    imgEl.src = dataUrl;
+    if (dataUrl) {
+      const idx = items.findIndex(i => i.id === id);
+      if (idx !== -1) { items[idx].qrDataUrl = dataUrl; saveItems(); }
+    }
+  }
 }
 
 function closeQRModal() {
@@ -492,40 +559,34 @@ function closeQRModal() {
 }
 
 function printQRLabel() {
-  const name   = document.getElementById('qrItemName').textContent;
-  const sub    = document.getElementById('qrItemSub').textContent;
-  const canvas = document.getElementById('qrCanvas');
-  const dataUrl = canvas.toDataURL('image/png');
-  const win = window.open('', '_blank', 'width=380,height=440');
-  win.document.write(`<!DOCTYPE html><html><head><title>QR Label</title>
+  const name    = document.getElementById('qrItemName').textContent;
+  const sub     = document.getElementById('qrItemSub').textContent;
+  const dataUrl = document.getElementById('qrCanvas').src;
+  if (!dataUrl) return;
+  const win = window.open('', '_blank', 'width=380,height=320');
+  win.document.write(`<!DOCTYPE html><html><head><title>Barcode Label</title>
     <style>
       body { margin:0; display:flex; flex-direction:column; align-items:center;
              justify-content:center; min-height:100vh; font-family:'Segoe UI',sans-serif; background:#fff; }
-      img  { width:200px; height:200px; }
-      .name{ font-weight:800; font-size:1.05rem; margin:10px 0 3px; text-align:center; }
-      .sub { font-size:0.78rem; color:#666; text-align:center; }
+      img  { width:260px; height:100px; object-fit:contain; }
+      .name{ font-weight:800; font-size:1rem; margin:8px 0 2px; text-align:center; }
+      .sub { font-size:0.75rem; color:#666; text-align:center; }
     </style></head>
     <body onload="window.print();window.close()">
-      <img src="${dataUrl}" alt="QR Code"/>
+      <img src="${dataUrl}" alt="Barcode"/>
       <div class="name">${name.replace(/</g,'&lt;')}</div>
       <div class="sub">${sub.replace(/</g,'&lt;')}</div>
     </body></html>`);
   win.document.close();
 }
 
-async function printAllQRStickers() {
+function printAllQRStickers() {
   if (!items.length) { alert('No items to print.'); return; }
 
-  // Generate QR data URLs using toCanvas (browser-compatible, matches showQR pattern)
-  const stickers = await Promise.all(items.map(item =>
-    new Promise((resolve, reject) => {
-      const canvas = document.createElement('canvas');
-      QRCode.toCanvas(canvas, item.id, { width: 180, margin: 1, color: { dark: '#1b4332', light: '#ffffff' } }, err => {
-        if (err) reject(err);
-        else resolve({ item, url: canvas.toDataURL('image/png') });
-      });
-    })
-  ));
+  const stickers = items.map(item => ({
+    item,
+    url: item.qrDataUrl || makeBarcodeDataUrl(item.id),
+  }));
 
   const rows = stickers.map(({ item, url }) => {
     const price = Number(item.retailPrice) > 0 ? '₱' + Number(item.retailPrice).toFixed(2) : '';
@@ -533,13 +594,11 @@ async function printAllQRStickers() {
     const cat   = item.category.replace(/</g, '&lt;');
     return `
       <div class="sticker">
-        <img class="qr" src="${url}" alt="QR"/>
-        <div class="info">
-          <div class="sname">${name}</div>
-          <div class="scat">${cat}</div>
-          ${price ? `<div class="sprice">${price}</div>` : ''}
-          <div class="sid">#${item.id.slice(-6).toUpperCase()}</div>
-        </div>
+        <img class="qr" src="${url}" alt="Barcode"/>
+        <div class="sname">${name}</div>
+        <div class="scat">${cat}</div>
+        ${price ? `<div class="sprice">${price}</div>` : ''}
+        <div class="sid">#${item.id.slice(-6).toUpperCase()}</div>
       </div>`;
   }).join('');
 
@@ -558,21 +617,19 @@ async function printAllQRStickers() {
     .sticker {
       border: 1px dashed #aaa;
       border-radius: 6px;
-      padding: 5mm 4mm;
+      padding: 4mm;
       display: flex;
-      flex-direction: row;
+      flex-direction: column;
       align-items: center;
-      gap: 4mm;
+      gap: 2mm;
       page-break-inside: avoid;
       background: #fff;
-      min-height: 34mm;
     }
-    .qr { width: 22mm; height: 22mm; flex-shrink: 0; display: block; }
-    .info { flex: 1; overflow: hidden; }
-    .sname { font-weight: 800; font-size: 8pt; line-height: 1.2; margin-bottom: 1mm; word-break: break-word; }
-    .scat  { font-size: 6.5pt; color: #666; margin-bottom: 1mm; }
-    .sprice{ font-size: 10pt; font-weight: 900; color: #1b4332; margin-bottom: 1mm; }
-    .sid   { font-size: 5.5pt; color: #999; letter-spacing: 0.5px; font-family: monospace; }
+    .qr { width: 100%; height: 18mm; object-fit: contain; display: block; }
+    .sname { font-weight: 800; font-size: 7.5pt; line-height: 1.2; text-align:center; word-break: break-word; }
+    .scat  { font-size: 6pt; color: #666; text-align:center; }
+    .sprice{ font-size: 9.5pt; font-weight: 900; color: #1b4332; text-align:center; }
+    .sid   { font-size: 5pt; color: #999; letter-spacing: 0.5px; font-family: monospace; text-align:center; }
     @media print {
       body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     }
@@ -600,8 +657,80 @@ document.getElementById('importModal').addEventListener('click', function(e) {
 
 // ── Keyboard: ESC closes modals ───────────────────────────
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') { closeModal(); closeConfirm(); closeQRModal(); cancelImport(); }
+  if (e.key === 'Escape') { closeModal(); closeConfirm(); closeQRModal(); cancelImport(); closeScanModal(); }
 });
+
+// ── Inventory QR Scanner ──────────────────────────────────
+let invScanner        = null;
+let invScannerRunning = false;
+let invScanCooldown   = false;
+
+function openScanModal() {
+  document.getElementById('invScanFeedback').textContent = 'Point camera at a product barcode';
+  document.getElementById('invScanFeedback').style.color = 'var(--text-muted)';
+  document.getElementById('scanModal').classList.add('open');
+  startInventoryScanner();
+}
+
+function closeScanModal() {
+  stopInventoryScanner();
+  document.getElementById('scanModal').classList.remove('open');
+}
+
+function startInventoryScanner() {
+  if (invScannerRunning) return;
+  invScanner = new Html5Qrcode('inv-qr-reader');
+  invScanner.start(
+    { facingMode: 'environment' },
+    {
+      fps: 15,
+      qrbox: { width: 280, height: 100 },
+      formatsToSupport: [
+        Html5QrcodeSupportedFormats.CODE_128,
+        Html5QrcodeSupportedFormats.CODE_39,
+        Html5QrcodeSupportedFormats.EAN_13,
+        Html5QrcodeSupportedFormats.EAN_8,
+      ],
+    },
+    onInventoryScan,
+    () => {}
+  ).then(() => {
+    invScannerRunning = true;
+  }).catch(() => {
+    const fb = document.getElementById('invScanFeedback');
+    fb.textContent = '⛔ Camera access denied — please allow camera permission and try again.';
+    fb.style.color = 'var(--danger)';
+  });
+}
+
+function stopInventoryScanner() {
+  if (!invScanner || !invScannerRunning) return;
+  invScanner.stop().catch(() => {});
+  invScannerRunning = false;
+  invScanner = null;
+}
+
+function onInventoryScan(decodedText) {
+  if (invScanCooldown) return;
+  invScanCooldown = true;
+  setTimeout(() => { invScanCooldown = false; }, 1500);
+
+  const fb = document.getElementById('invScanFeedback');
+  loadItems();
+  const item = items.find(i => i.id === decodedText);
+
+  if (!item) {
+    fb.textContent = '❌ Product not found — make sure this barcode was generated from this system.';
+    fb.style.color = 'var(--danger)';
+    return;
+  }
+
+  // Found — stop scanner, close modal, open edit
+  stopInventoryScanner();
+  document.getElementById('scanModal').classList.remove('open');
+  openEditModal(item.id);
+  showToast(`Found: ${item.name}`, 'ok');
+}
 
 // ── Export / Import data ──────────────────────────────────
 const HISTORY_KEY  = 'grocery_sales_history';
@@ -672,6 +801,7 @@ function confirmImport() {
   loadItems();
   renderItems();
   updateStats();
+  generateMissingQRCodes();
 }
 
 function cancelImport() {
@@ -713,3 +843,5 @@ setCurrentDate();
 seedDemo();
 loadItems();
 renderItems();
+// Generate and persist QR codes for any items that don't have one yet
+generateMissingQRCodes();

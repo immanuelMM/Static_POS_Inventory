@@ -8,7 +8,53 @@
   <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.6.0/dist/jspdf.plugin.autotable.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+  <style>
+    /* ── QR section on each product card ─────────────────── */
+    .card-qr-section {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 14px 12px;
+      border-top: 1px dashed var(--border);
+      background: #F8FAFC;
+    }
+    .card-qr-canvas {
+      width: 130px; height: 56px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: #fff;
+      flex-shrink: 0;
+      display: block;
+      object-fit: contain;
+    }
+    .card-qr-info {
+      flex: 1; min-width: 0;
+    }
+    .card-qr-name {
+      font-size: 0.78rem; font-weight: 700; color: var(--text);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      margin-bottom: 2px;
+    }
+    .card-qr-id {
+      font-size: 0.65rem; font-family: monospace; color: var(--text-muted);
+      letter-spacing: 0.5px; margin-bottom: 2px;
+    }
+    .card-qr-hint {
+      font-size: 0.67rem; color: var(--text-light); font-weight: 500;
+      margin-bottom: 6px;
+    }
+    .card-qr-print-btn {
+      font-size: 0.72rem; font-weight: 700; font-family: inherit;
+      padding: 4px 10px; border-radius: 6px; cursor: pointer;
+      border: 1.5px solid var(--border); background: var(--surface);
+      color: var(--text); transition: all 0.15s;
+    }
+    .card-qr-print-btn:hover {
+      border-color: var(--primary); color: var(--primary); background: #F0FDFA;
+    }
+  </style>
 </head>
 <body>
 
@@ -144,6 +190,7 @@
 
       <!-- Toolbar -->
       <div class="toolbar">
+        <button class="btn btn-ghost" onclick="openScanModal()" style="white-space:nowrap">📷 Scan QR</button>
         <input type="text" id="searchInput" placeholder="Search items…" oninput="renderItems()" />
         <select id="filterCategory" onchange="renderItems()">
           <option value="">All Categories</option>
@@ -186,6 +233,25 @@
 </div><!-- /admin-wrap -->
 
 <!-- ── Modals ─────────────────────────────────────────────── -->
+
+<!-- QR Scan Modal -->
+<div class="modal-overlay" id="scanModal">
+  <div class="modal" style="max-width:400px">
+    <div class="modal-header">
+      <h2>📷 Scan Product QR</h2>
+      <button class="modal-close" onclick="closeScanModal()">✕</button>
+    </div>
+    <div class="modal-body" style="padding:16px 20px">
+      <div id="inv-qr-reader" style="border-radius:10px;overflow:hidden"></div>
+      <div id="invScanFeedback" style="margin-top:12px;text-align:center;font-size:0.84rem;color:var(--text-muted);min-height:20px;font-weight:500">
+        Point camera at a product QR sticker
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeScanModal()">Cancel</button>
+    </div>
+  </div>
+</div>
 
 <!-- Add/Edit Modal -->
 <div class="modal-overlay" id="itemModal">
@@ -281,13 +347,13 @@
 <div class="modal-overlay" id="qrModal">
   <div class="modal" style="max-width:340px">
     <div class="modal-header">
-      <h2>📱 Item QR Code</h2>
+      <h2>🏷️ Item Barcode</h2>
       <button class="modal-close" onclick="closeQRModal()">✕</button>
     </div>
     <div class="modal-body" style="text-align:center;padding:24px">
       <div id="qrItemName" style="font-weight:700;font-size:1rem;margin-bottom:6px"></div>
       <div id="qrItemSub" style="font-size:0.78rem;color:var(--text-muted);margin-bottom:16px"></div>
-      <canvas id="qrCanvas" style="border:1px solid var(--border);border-radius:8px;padding:8px"></canvas>
+      <img id="qrCanvas" style="width:260px;height:110px;border:1px solid var(--border);border-radius:8px;padding:8px;background:#fff;object-fit:contain" alt="Barcode" />
       <p style="font-size:0.7rem;color:var(--text-muted);margin-top:12px">Scan in POS terminal to add to cart.</p>
     </div>
     <div class="modal-footer">
@@ -341,6 +407,9 @@
     const el = document.getElementById('sidebarStoreName');
     if (el && s.storeName) el.textContent = s.storeName;
   })();
+  document.getElementById('scanModal').addEventListener('click', function(e) {
+    if (e.target === this) closeScanModal();
+  });
 </script>
 </body>
 </html>
