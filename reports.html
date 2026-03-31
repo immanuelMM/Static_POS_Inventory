@@ -3,299 +3,329 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Sales Reports — Grocery</title>
-  <link rel="stylesheet" href="styles.css" />
+  <title>Reports — GroceryPOS</title>
+  <link rel="stylesheet" href="admin.css" />
   <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.6.0/dist/jspdf.plugin.autotable.min.js"></script>
   <style>
-    /* ── Period Tabs ── */
+    /* Period bar */
     .period-bar {
-      display: flex;
-      gap: 6px;
+      display: flex; gap: 6px; flex-wrap: wrap; align-items: center;
       background: var(--surface);
-      border-radius: var(--radius);
+      border-radius: var(--r-lg);
       padding: 10px 14px;
       box-shadow: var(--shadow);
-      margin-bottom: 20px;
-      flex-wrap: wrap;
-      align-items: center;
+      margin-bottom: 18px;
+      border: 1px solid var(--border-light);
     }
-    .period-bar span { font-size: 0.82rem; color: var(--text-muted); margin-right: 4px; font-weight: 600; }
+    .period-bar > span { font-size: 0.72rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.6px; margin-right: 4px; }
     .period-tab {
-      padding: 7px 18px;
+      padding: 6px 16px;
       border: 1.5px solid var(--border);
       border-radius: 20px;
-      background: #f8f9fa;
-      font-size: 0.88rem;
-      font-weight: 600;
-      cursor: pointer;
-      transition: all 0.15s;
-      color: var(--text);
+      background: var(--bg);
+      font-size: 0.82rem; font-weight: 600; font-family: inherit;
+      cursor: pointer; transition: all 0.15s; color: var(--text-muted);
     }
-    .period-tab:hover { border-color: var(--primary); color: var(--primary); }
-    .period-tab.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+    .period-tab:hover { border-color: var(--primary); color: var(--primary); background: #F0FDFA; }
+    .period-tab.active { background: var(--primary); color: #fff; border-color: var(--primary); box-shadow: 0 2px 8px rgba(15,118,110,0.3); }
     .period-label {
-      margin-left: auto;
-      font-size: 0.78rem;
-      color: var(--text-muted);
-      background: #f0f4f8;
-      padding: 4px 12px;
-      border-radius: 12px;
+      margin-left: auto; font-size: 0.75rem; color: var(--text-muted);
+      background: var(--bg); padding: 4px 12px; border-radius: 20px;
+      font-weight: 600; border: 1px solid var(--border);
     }
 
-    /* ── Summary Stats ── */
+    /* Summary stats */
     .report-stats {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-      gap: 14px;
-      margin-bottom: 24px;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 12px; margin-bottom: 18px;
     }
     .rs-card {
       background: var(--surface);
-      border-radius: var(--radius);
+      border-radius: var(--r-lg);
       padding: 18px 20px;
       box-shadow: var(--shadow);
+      border: 1px solid var(--border-light);
+      position: relative; overflow: hidden;
     }
-    .rs-card .rs-label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted); font-weight: 600; margin-bottom: 6px; }
-    .rs-card .rs-value { font-size: 1.7rem; font-weight: 800; line-height: 1; }
-    .rs-card.txns    .rs-value { color: #0d6efd; }
+    .rs-card::after {
+      content: ''; position: absolute;
+      bottom: 0; left: 0; right: 0; height: 3px;
+    }
+    .rs-card.txns::after    { background: var(--info); }
+    .rs-card.revenue::after { background: var(--primary); }
+    .rs-card.cost::after    { background: var(--warn); }
+    .rs-card.profit::after  { background: var(--safe); }
+    .rs-card.margin::after  { background: #8B5CF6; }
+    .rs-label { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.6px; color: var(--text-muted); font-weight: 700; margin-bottom: 8px; }
+    .rs-value { font-size: 1.6rem; font-weight: 900; line-height: 1; letter-spacing: -1px; }
+    .rs-card.txns    .rs-value { color: var(--info); }
     .rs-card.revenue .rs-value { color: var(--primary); }
     .rs-card.cost    .rs-value { color: var(--warn); }
     .rs-card.profit  .rs-value { color: var(--safe); }
-    .rs-card.margin  .rs-value { color: #6f42c1; }
-    .rs-card .rs-sub { font-size: 0.73rem; color: var(--text-muted); margin-top: 4px; }
+    .rs-card.margin  .rs-value { color: #8B5CF6; }
+    .rs-sub { font-size: 0.7rem; color: var(--text-light); margin-top: 5px; font-weight: 500; }
 
-    /* ── Two-column layout ── */
+    /* Report grid */
     .report-grid {
       display: grid;
-      grid-template-columns: 1fr 320px;
-      gap: 20px;
-      margin-bottom: 24px;
-      align-items: start;
+      grid-template-columns: 1fr 300px;
+      gap: 16px; margin-bottom: 16px; align-items: start;
     }
-    @media (max-width: 900px) { .report-grid { grid-template-columns: 1fr; } }
 
-    /* ── Panel card ── */
+    /* Panel */
     .panel {
       background: var(--surface);
-      border-radius: var(--radius);
+      border-radius: var(--r-lg);
       box-shadow: var(--shadow);
       overflow: hidden;
+      border: 1px solid var(--border-light);
     }
     .panel-header {
-      padding: 14px 20px;
-      border-bottom: 1px solid var(--border);
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 10px;
+      padding: 12px 18px;
+      border-bottom: 1px solid var(--border-light);
+      display: flex; align-items: center; justify-content: space-between; gap: 10px;
+      background: #FAFAFA;
     }
-    .panel-header h3 { font-size: 0.97rem; font-weight: 700; }
+    .panel-header h3 { font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text); }
     .panel-body { padding: 0; }
 
-    /* ── Product Table ── */
-    .report-table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+    /* Report table */
+    .report-table { width: 100%; border-collapse: collapse; font-size: 0.84rem; }
     .report-table thead th {
-      background: #f8f9fa;
-      padding: 10px 14px;
-      text-align: left;
-      font-size: 0.73rem;
-      text-transform: uppercase;
-      letter-spacing: 0.4px;
-      color: var(--text-muted);
-      font-weight: 700;
-      border-bottom: 1px solid var(--border);
-      white-space: nowrap;
-      cursor: pointer;
-      user-select: none;
+      background: #F8FAFC; padding: 10px 14px;
+      text-align: left; font-size: 0.67rem; text-transform: uppercase;
+      letter-spacing: 0.5px; color: var(--text-muted); font-weight: 700;
+      border-bottom: 1px solid var(--border); white-space: nowrap;
+      cursor: pointer; user-select: none; font-family: inherit;
     }
     .report-table thead th:hover { color: var(--primary); }
     .report-table thead th.sorted { color: var(--primary); }
-    .report-table thead th .sort-arrow { margin-left: 4px; font-size: 0.65rem; }
-    .report-table tbody tr:hover { background: #f8fffe; }
-    .report-table tbody td {
-      padding: 10px 14px;
-      border-bottom: 1px solid #f0f2f4;
-      vertical-align: middle;
-    }
+    .report-table thead th .sort-arrow { margin-left: 4px; font-size: 0.6rem; }
+    .report-table tbody tr { transition: background 0.1s; }
+    .report-table tbody tr:hover { background: #F0FDFA; }
+    .report-table tbody td { padding: 10px 14px; border-bottom: 1px solid var(--border-light); vertical-align: middle; }
     .report-table tbody tr:last-child td { border-bottom: none; }
-    .td-num { text-align: right; font-variant-numeric: tabular-nums; }
+    .td-num { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
     .profit-pos { color: var(--safe); font-weight: 700; }
     .profit-neg { color: var(--danger); font-weight: 700; }
     .badge-cat {
-      display: inline-block;
-      padding: 2px 8px;
-      border-radius: 10px;
-      font-size: 0.72rem;
-      font-weight: 600;
-      background: #e8f4f0;
-      color: var(--primary-dark);
+      display: inline-block; padding: 2px 9px; border-radius: 20px;
+      font-size: 0.7rem; font-weight: 700;
+      background: #F0FDFA; color: var(--primary-dark); border: 1px solid #CCFBF1;
     }
     .margin-bar-wrap { display: flex; align-items: center; gap: 6px; }
-    .margin-bar { height: 6px; border-radius: 3px; background: var(--primary); min-width: 2px; }
-    .margin-val { font-size: 0.78rem; color: var(--text-muted); white-space: nowrap; }
+    .margin-bar { height: 5px; border-radius: 3px; background: linear-gradient(90deg, var(--primary), var(--accent)); min-width: 2px; }
+    .margin-val { font-size: 0.74rem; color: var(--text-muted); white-space: nowrap; font-weight: 600; }
 
-    /* ── Category list ── */
-    .cat-list { padding: 8px 0; }
-    .cat-row {
-      padding: 10px 20px;
-      border-bottom: 1px solid #f0f2f4;
-    }
+    /* Category list */
+    .cat-list { padding: 4px 0; }
+    .cat-row { padding: 10px 18px; border-bottom: 1px solid var(--border-light); }
     .cat-row:last-child { border-bottom: none; }
-    .cat-row-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
-    .cat-name { font-size: 0.85rem; font-weight: 600; }
+    .cat-row-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; }
+    .cat-name { font-size: 0.83rem; font-weight: 700; color: var(--text); }
     .cat-profit { font-size: 0.82rem; font-weight: 700; }
-    .cat-bar-bg { height: 5px; background: #e9ecef; border-radius: 3px; overflow: hidden; }
-    .cat-bar-fill { height: 100%; border-radius: 3px; background: linear-gradient(90deg, var(--primary), var(--accent)); transition: width 0.4s; }
-    .cat-meta { font-size: 0.72rem; color: var(--text-muted); margin-top: 3px; }
+    .cat-bar-bg { height: 4px; background: var(--border); border-radius: 4px; overflow: hidden; }
+    .cat-bar-fill { height: 100%; border-radius: 4px; background: linear-gradient(90deg, var(--primary), var(--accent)); transition: width 0.5s; }
+    .cat-meta { font-size: 0.7rem; color: var(--text-light); margin-top: 4px; font-weight: 500; }
 
-    /* ── Empty state ── */
-    .empty-report {
-      text-align: center;
-      padding: 48px 20px;
-      color: var(--text-muted);
-    }
-    .empty-report .empty-icon { font-size: 3rem; margin-bottom: 12px; }
-    .empty-report p { font-size: 0.9rem; }
+    /* Empty */
+    .empty-report { text-align: center; padding: 48px 20px; color: var(--text-muted); }
+    .empty-report .empty-icon { font-size: 2.8rem; margin-bottom: 12px; opacity: 0.5; }
+    .empty-report p { font-size: 0.875rem; font-weight: 500; }
 
-    /* ── Export bar ── */
+    /* Export bar */
     .export-bar {
-      display: flex;
-      gap: 10px;
-      background: var(--surface);
-      border-radius: var(--radius);
-      padding: 14px 18px;
-      box-shadow: var(--shadow);
-      align-items: center;
-      flex-wrap: wrap;
+      display: flex; gap: 10px; flex-wrap: wrap; align-items: center;
+      background: var(--surface); border-radius: var(--r-lg);
+      padding: 14px 18px; box-shadow: var(--shadow);
+      border: 1px solid var(--border-light);
     }
-    .export-bar span { font-size: 0.85rem; color: var(--text-muted); font-weight: 600; flex: 1; }
+    .export-bar span { font-size: 0.78rem; color: var(--text-muted); font-weight: 700; flex: 1; text-transform: uppercase; letter-spacing: 0.4px; }
 
-    /* ── btn-report nav ── */
-    .btn-report-nav {
-      background: rgba(255,255,255,0.15);
-      color: #fff;
-      border: 1.5px solid rgba(255,255,255,0.3);
-      padding: 7px 16px;
-      border-radius: 8px;
-      font-size: 0.85rem;
-      font-weight: 600;
-      text-decoration: none;
-      cursor: pointer;
-      transition: background 0.15s;
-    }
-    .btn-report-nav:hover { background: rgba(255,255,255,0.25); }
+    .daily-panel { margin-bottom: 18px; }
 
-    /* Daily breakdown table */
-    .daily-panel { margin-bottom: 24px; }
+    @media (max-width: 1100px) { .report-stats { grid-template-columns: repeat(3, 1fr); } }
+    @media (max-width: 900px)  { .report-grid  { grid-template-columns: 1fr; } }
+    @media (max-width: 600px)  { .report-stats { grid-template-columns: repeat(2, 1fr); } }
   </style>
 </head>
 <body>
 
-<header>
-  <h1><span>📊</span> Sales Reports</h1>
-  <div class="header-right">
-    <a href="index.html" class="btn-report-nav">🛒 Inventory</a>
-    <a href="pos.html"   class="btn-report-nav">🖥️ POS Terminal</a>
-    <span class="date-badge" id="currentDate"></span>
-  </div>
-</header>
+<div class="admin-wrap">
 
-<div class="container">
-
-  <!-- Period Selector -->
-  <div class="period-bar">
-    <span>Period:</span>
-    <button class="period-tab" data-period="week"  onclick="setPeriod('week')">This Week</button>
-    <button class="period-tab" data-period="month" onclick="setPeriod('month')">This Month</button>
-    <button class="period-tab" data-period="year"  onclick="setPeriod('year')">This Year</button>
-    <button class="period-tab" data-period="all"   onclick="setPeriod('all')">All Time</button>
-    <span class="period-label" id="periodLabel"></span>
-  </div>
-
-  <!-- Summary Cards -->
-  <div class="report-stats">
-    <div class="rs-card txns">
-      <div class="rs-label">Transactions</div>
-      <div class="rs-value" id="statTxns">—</div>
-      <div class="rs-sub">completed sales</div>
-    </div>
-    <div class="rs-card revenue">
-      <div class="rs-label">Total Revenue</div>
-      <div class="rs-value" id="statRevenue">—</div>
-      <div class="rs-sub">gross sales</div>
-    </div>
-    <div class="rs-card cost">
-      <div class="rs-label">Total Cost</div>
-      <div class="rs-value" id="statCost">—</div>
-      <div class="rs-sub">cost of goods sold</div>
-    </div>
-    <div class="rs-card profit">
-      <div class="rs-label">Gross Profit</div>
-      <div class="rs-value" id="statProfit">—</div>
-      <div class="rs-sub">revenue − cost</div>
-    </div>
-    <div class="rs-card margin">
-      <div class="rs-label">Profit Margin</div>
-      <div class="rs-value" id="statMargin">—</div>
-      <div class="rs-sub">avg gross margin</div>
-    </div>
-  </div>
-
-  <!-- Product table + Category breakdown -->
-  <div class="report-grid">
-
-    <!-- Product breakdown -->
-    <div class="panel">
-      <div class="panel-header">
-        <h3>📦 Product Breakdown</h3>
-        <span id="productCount" style="font-size:0.78rem;color:var(--text-muted)"></span>
+  <!-- ── Sidebar ─────────────────────────────────────────── -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-icon">🛒</div>
+      <div class="logo-text">
+        <span class="logo-name">GroceryPOS</span>
+        <span class="logo-sub">Admin Panel</span>
       </div>
-      <div class="panel-body" id="productTableWrap">
-        <div class="empty-report">
-          <div class="empty-icon">🛒</div>
-          <p>No sales data for this period.</p>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-section-label">Main</div>
+      <a href="index.html" class="nav-item">
+        <span class="nav-icon">📦</span>
+        <span class="nav-label">Inventory</span>
+      </a>
+      <a href="pos.html" class="nav-item">
+        <span class="nav-icon">🖥️</span>
+        <span class="nav-label">POS Terminal</span>
+      </a>
+      <a href="reports.html" class="nav-item active">
+        <span class="nav-icon">📊</span>
+        <span class="nav-label">Reports</span>
+      </a>
+    </div>
+
+    <div class="sidebar-divider"></div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-section-label">Export</div>
+      <button class="nav-item" onclick="exportExcel()">
+        <span class="nav-icon">📗</span>
+        <span class="nav-label">Export Excel</span>
+      </button>
+      <button class="nav-item" onclick="exportPDF()">
+        <span class="nav-icon">📄</span>
+        <span class="nav-label">Export PDF</span>
+      </button>
+    </div>
+
+    <div class="sidebar-footer">
+      <div class="sidebar-store">
+        <div class="sidebar-store-avatar">🏪</div>
+        <span class="sidebar-store-name" id="sidebarStoreName">Grocery Store</span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Overlay (mobile) -->
+  <div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
+
+  <!-- ── Main Area ───────────────────────────────────────── -->
+  <div class="main-area">
+
+    <!-- Topbar -->
+    <div class="topbar">
+      <button class="topbar-hamburger" id="hamburger" onclick="toggleSidebar()" aria-label="Menu">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <line x1="3" y1="6"  x2="21" y2="6"/>
+          <line x1="3" y1="12" x2="21" y2="12"/>
+          <line x1="3" y1="18" x2="21" y2="18"/>
+        </svg>
+      </button>
+      <span class="topbar-title">Sales Reports</span>
+      <div class="topbar-right">
+        <span class="topbar-date" id="currentDate"></span>
+      </div>
+    </div>
+
+    <!-- Page Content -->
+    <div class="page-content">
+
+      <!-- Period Selector -->
+      <div class="period-bar">
+        <span>Period:</span>
+        <button class="period-tab" data-period="week"  onclick="setPeriod('week')">This Week</button>
+        <button class="period-tab" data-period="month" onclick="setPeriod('month')">This Month</button>
+        <button class="period-tab" data-period="year"  onclick="setPeriod('year')">This Year</button>
+        <button class="period-tab" data-period="all"   onclick="setPeriod('all')">All Time</button>
+        <span class="period-label" id="periodLabel"></span>
+      </div>
+
+      <!-- Summary Cards -->
+      <div class="report-stats">
+        <div class="rs-card txns">
+          <div class="rs-label">Transactions</div>
+          <div class="rs-value" id="statTxns">—</div>
+          <div class="rs-sub">completed sales</div>
+        </div>
+        <div class="rs-card revenue">
+          <div class="rs-label">Total Revenue</div>
+          <div class="rs-value" id="statRevenue">—</div>
+          <div class="rs-sub">gross sales</div>
+        </div>
+        <div class="rs-card cost">
+          <div class="rs-label">Total Cost</div>
+          <div class="rs-value" id="statCost">—</div>
+          <div class="rs-sub">cost of goods sold</div>
+        </div>
+        <div class="rs-card profit">
+          <div class="rs-label">Gross Profit</div>
+          <div class="rs-value" id="statProfit">—</div>
+          <div class="rs-sub">revenue − cost</div>
+        </div>
+        <div class="rs-card margin">
+          <div class="rs-label">Profit Margin</div>
+          <div class="rs-value" id="statMargin">—</div>
+          <div class="rs-sub">avg gross margin</div>
         </div>
       </div>
-    </div>
 
-    <!-- Category breakdown -->
-    <div class="panel">
-      <div class="panel-header">
-        <h3>🏷️ By Category</h3>
-      </div>
-      <div class="panel-body">
-        <div class="cat-list" id="catList">
-          <div class="empty-report" style="padding:28px 20px">
-            <div class="empty-icon" style="font-size:2rem">📂</div>
-            <p>No data</p>
+      <!-- Product + Category -->
+      <div class="report-grid">
+        <div class="panel">
+          <div class="panel-header">
+            <h3>Product Breakdown</h3>
+            <span id="productCount" style="font-size:0.75rem;color:var(--text-muted)"></span>
+          </div>
+          <div class="panel-body" id="productTableWrap">
+            <div class="empty-report"><div class="empty-icon">🛒</div><p>No sales data for this period.</p></div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-header"><h3>By Category</h3></div>
+          <div class="panel-body">
+            <div class="cat-list" id="catList">
+              <div class="empty-report" style="padding:28px 20px">
+                <div class="empty-icon" style="font-size:2rem">📂</div>
+                <p>No data</p>
+              </div>
+            </div>
           </div>
         </div>
       </div>
-    </div>
 
-  </div>
+      <!-- Daily Summary -->
+      <div class="panel daily-panel">
+        <div class="panel-header"><h3>Daily Sales Summary</h3></div>
+        <div class="panel-body" id="dailyTableWrap">
+          <div class="empty-report"><div class="empty-icon">📅</div><p>No sales data.</p></div>
+        </div>
+      </div>
 
-  <!-- Daily sales summary -->
-  <div class="panel daily-panel">
-    <div class="panel-header">
-      <h3>📅 Daily Sales Summary</h3>
-    </div>
-    <div class="panel-body" id="dailyTableWrap">
-      <div class="empty-report"><div class="empty-icon">📅</div><p>No sales data.</p></div>
-    </div>
-  </div>
+      <!-- Export -->
+      <div class="export-bar">
+        <span>Export Report</span>
+        <button class="btn btn-excel" onclick="exportExcel()">📊 Excel</button>
+        <button class="btn btn-pdf"   onclick="exportPDF()">📄 PDF</button>
+      </div>
 
-  <!-- Export bar -->
-  <div class="export-bar">
-    <span>Export Report</span>
-    <button class="btn btn-excel" onclick="exportExcel()">📊 Export Excel</button>
-    <button class="btn btn-pdf"   onclick="exportPDF()">📄 Export PDF</button>
-  </div>
-
-</div><!-- /container -->
+    </div><!-- /page-content -->
+  </div><!-- /main-area -->
+</div><!-- /admin-wrap -->
 
 <script src="reports.js"></script>
+<script>
+  function toggleSidebar() {
+    document.getElementById('sidebar').classList.toggle('open');
+    document.getElementById('sidebarOverlay').classList.toggle('show');
+  }
+  function closeSidebar() {
+    document.getElementById('sidebar').classList.remove('open');
+    document.getElementById('sidebarOverlay').classList.remove('show');
+  }
+  (function() {
+    const s = JSON.parse(localStorage.getItem('grocery_pos_settings') || '{}');
+    const el = document.getElementById('sidebarStoreName');
+    if (el && s.storeName) el.textContent = s.storeName;
+  })();
+</script>
 </body>
 </html>

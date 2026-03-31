@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Grocery Inventory</title>
-  <link rel="stylesheet" href="styles.css" />
+  <title>Inventory — GroceryPOS</title>
+  <link rel="stylesheet" href="admin.css" />
   <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.6.0/dist/jspdf.plugin.autotable.min.js"></script>
@@ -12,89 +12,176 @@
 </head>
 <body>
 
-<!-- Header -->
-<header>
-  <h1><span>🛒</span> Grocery Inventory</h1>
-  <div class="header-right">
-    <a href="pos.html"     class="btn-pos-nav">🖥️ POS Terminal</a>
-    <a href="reports.html" class="btn-pos-nav">📊 Reports</a>
-    <span class="date-badge" id="currentDate"></span>
-  </div>
-</header>
+<div class="admin-wrap">
 
-<div class="container">
-
-  <!-- Stats -->
-  <div class="stats-grid">
-    <div class="stat-card">
-      <div class="stat-icon total">📦</div>
-      <div class="stat-info"><p>Total Items</p><h2 class="c-total" id="statTotal">0</h2></div>
+  <!-- ── Sidebar ─────────────────────────────────────────── -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-icon">🛒</div>
+      <div class="logo-text">
+        <span class="logo-name">GroceryPOS</span>
+        <span class="logo-sub">Admin Panel</span>
+      </div>
     </div>
-    <div class="stat-card">
-      <div class="stat-icon fresh">✅</div>
-      <div class="stat-info"><p>Fresh</p><h2 class="c-fresh" id="statFresh">0</h2></div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-section-label">Main</div>
+      <a href="index.html" class="nav-item active">
+        <span class="nav-icon">📦</span>
+        <span class="nav-label">Inventory</span>
+      </a>
+      <a href="pos.html" class="nav-item">
+        <span class="nav-icon">🖥️</span>
+        <span class="nav-label">POS Terminal</span>
+      </a>
+      <a href="reports.html" class="nav-item">
+        <span class="nav-icon">📊</span>
+        <span class="nav-label">Reports</span>
+      </a>
     </div>
-    <div class="stat-card">
-      <div class="stat-icon warning">⚠️</div>
-      <div class="stat-info"><p>Expiring Soon</p><h2 class="c-warning" id="statWarn">0</h2></div>
+
+    <div class="sidebar-divider"></div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-section-label">Tools</div>
+      <button class="nav-item" onclick="exportExcel()">
+        <span class="nav-icon">📗</span>
+        <span class="nav-label">Export Excel</span>
+      </button>
+      <button class="nav-item" onclick="exportPDF()">
+        <span class="nav-icon">📄</span>
+        <span class="nav-label">Export PDF</span>
+      </button>
+      <button class="nav-item" onclick="printAllQRStickers()">
+        <span class="nav-icon">🏷️</span>
+        <span class="nav-label">Print Stickers</span>
+      </button>
+      <button class="nav-item" onclick="exportData()">
+        <span class="nav-icon">⬇️</span>
+        <span class="nav-label">Export Backup</span>
+      </button>
+      <button class="nav-item" onclick="document.getElementById('importFileInput').click()">
+        <span class="nav-icon">⬆️</span>
+        <span class="nav-label">Import Backup</span>
+      </button>
+      <input type="file" id="importFileInput" accept=".json" style="display:none" onchange="importData(this)">
     </div>
-    <div class="stat-card">
-      <div class="stat-icon expired">❌</div>
-      <div class="stat-info"><p>Expired</p><h2 class="c-expired" id="statExpired">0</h2></div>
+
+    <div class="sidebar-footer">
+      <div class="sidebar-store">
+        <div class="sidebar-store-avatar">🏪</div>
+        <span class="sidebar-store-name" id="sidebarStoreName">Grocery Store</span>
+      </div>
     </div>
-  </div>
+  </aside>
 
-  <!-- Alert Banner -->
-  <div class="alert-banner" id="alertBanner">
-    <span>⚠️</span>
-    <div><strong>Attention:</strong> <span id="alertText"></span></div>
-  </div>
+  <!-- Overlay (mobile) -->
+  <div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
 
-  <!-- Toolbar -->
-  <div class="toolbar">
-    <input type="text" id="searchInput" placeholder="🔍  Search items…" oninput="renderItems()" />
-    <select id="filterCategory" onchange="renderItems()">
-      <option value="">All Categories</option>
-      <option>Fruits & Vegetables</option>
-      <option>Dairy & Eggs</option>
-      <option>Meat & Seafood</option>
-      <option>Bakery & Bread</option>
-      <option>Frozen Foods</option>
-      <option>Canned & Dry Goods</option>
-      <option>Beverages</option>
-      <option>Snacks & Sweets</option>
-      <option>Condiments & Spices</option>
-      <option>Cleaning Supplies</option>
-      <option>Personal Care</option>
-      <option>Other</option>
-    </select>
-    <select id="filterStatus" onchange="renderItems()">
-      <option value="">All Status</option>
-      <option value="fresh">Fresh</option>
-      <option value="warning">Expiring Soon</option>
-      <option value="expired">Expired</option>
-    </select>
-    <select id="sortBy" onchange="renderItems()">
-      <option value="name">Sort: Name</option>
-      <option value="expiry">Sort: Expiry Date</option>
-      <option value="added">Sort: Date Added</option>
-      <option value="qty">Sort: Quantity</option>
-    </select>
-    <button class="btn btn-primary" onclick="openAddModal()">+ Add Item</button>
-    <div class="toolbar-divider"></div>
-    <button class="btn btn-excel" onclick="exportExcel()" title="Export to Excel">📊 Excel</button>
-    <button class="btn btn-pdf"   onclick="exportPDF()"   title="Export to PDF">📄 PDF</button>
-    <button class="btn btn-ghost" onclick="printAllQRStickers()" title="Print QR stickers for all items">🏷️ Print Stickers</button>
-  </div>
+  <!-- ── Main Area ───────────────────────────────────────── -->
+  <div class="main-area">
 
-  <!-- Items Grid -->
-  <div class="items-grid" id="itemsGrid"></div>
-  <div class="empty-state" id="emptyState">
-    <div class="big-icon">🥦</div>
-    <p>No items found. Add your first grocery item!</p>
-  </div>
+    <!-- Topbar -->
+    <div class="topbar">
+      <button class="topbar-hamburger" id="hamburger" onclick="toggleSidebar()" aria-label="Menu">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <line x1="3" y1="6"  x2="21" y2="6"/>
+          <line x1="3" y1="12" x2="21" y2="12"/>
+          <line x1="3" y1="18" x2="21" y2="18"/>
+        </svg>
+      </button>
+      <span class="topbar-title">Inventory</span>
+      <div class="topbar-right">
+        <span class="topbar-date" id="currentDate"></span>
+        <button class="btn btn-primary" onclick="openAddModal()">+ Add Item</button>
+      </div>
+    </div>
 
-</div>
+    <!-- Page Content -->
+    <div class="page-content">
+
+      <!-- Stats -->
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-info">
+            <p>Total Items</p>
+            <h2 class="c-total" id="statTotal">0</h2>
+          </div>
+          <div class="stat-icon total">📦</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-info">
+            <p>Fresh</p>
+            <h2 class="c-fresh" id="statFresh">0</h2>
+          </div>
+          <div class="stat-icon fresh">✅</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-info">
+            <p>Expiring Soon</p>
+            <h2 class="c-warning" id="statWarn">0</h2>
+          </div>
+          <div class="stat-icon warning">⚠️</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-info">
+            <p>Expired</p>
+            <h2 class="c-expired" id="statExpired">0</h2>
+          </div>
+          <div class="stat-icon expired">❌</div>
+        </div>
+      </div>
+
+      <!-- Alert Banner -->
+      <div class="alert-banner" id="alertBanner">
+        <span>⚠️</span>
+        <div><strong>Attention:</strong> <span id="alertText"></span></div>
+      </div>
+
+      <!-- Toolbar -->
+      <div class="toolbar">
+        <input type="text" id="searchInput" placeholder="Search items…" oninput="renderItems()" />
+        <select id="filterCategory" onchange="renderItems()">
+          <option value="">All Categories</option>
+          <option>Fruits &amp; Vegetables</option>
+          <option>Dairy &amp; Eggs</option>
+          <option>Meat &amp; Seafood</option>
+          <option>Bakery &amp; Bread</option>
+          <option>Frozen Foods</option>
+          <option>Canned &amp; Dry Goods</option>
+          <option>Beverages</option>
+          <option>Snacks &amp; Sweets</option>
+          <option>Condiments &amp; Spices</option>
+          <option>Cleaning Supplies</option>
+          <option>Personal Care</option>
+          <option>Other</option>
+        </select>
+        <select id="filterStatus" onchange="renderItems()">
+          <option value="">All Status</option>
+          <option value="fresh">Fresh</option>
+          <option value="warning">Expiring Soon</option>
+          <option value="expired">Expired</option>
+        </select>
+        <select id="sortBy" onchange="renderItems()">
+          <option value="name">Sort: Name</option>
+          <option value="expiry">Sort: Expiry</option>
+          <option value="added">Sort: Date Added</option>
+          <option value="qty">Sort: Quantity</option>
+        </select>
+      </div>
+
+      <!-- Items Grid -->
+      <div class="items-grid" id="itemsGrid"></div>
+      <div class="empty-state" id="emptyState">
+        <div class="big-icon">🥦</div>
+        <p>No items found. Add your first grocery item!</p>
+      </div>
+
+    </div><!-- /page-content -->
+  </div><!-- /main-area -->
+</div><!-- /admin-wrap -->
+
+<!-- ── Modals ─────────────────────────────────────────────── -->
 
 <!-- Add/Edit Modal -->
 <div class="modal-overlay" id="itemModal">
@@ -113,15 +200,15 @@
           <label>Category *</label>
           <select id="fCategory">
             <option value="">Select…</option>
-            <option>Fruits & Vegetables</option>
-            <option>Dairy & Eggs</option>
-            <option>Meat & Seafood</option>
-            <option>Bakery & Bread</option>
+            <option>Fruits &amp; Vegetables</option>
+            <option>Dairy &amp; Eggs</option>
+            <option>Meat &amp; Seafood</option>
+            <option>Bakery &amp; Bread</option>
             <option>Frozen Foods</option>
-            <option>Canned & Dry Goods</option>
+            <option>Canned &amp; Dry Goods</option>
             <option>Beverages</option>
-            <option>Snacks & Sweets</option>
-            <option>Condiments & Spices</option>
+            <option>Snacks &amp; Sweets</option>
+            <option>Condiments &amp; Spices</option>
             <option>Cleaning Supplies</option>
             <option>Personal Care</option>
             <option>Other</option>
@@ -134,16 +221,9 @@
         <div class="form-group">
           <label>Unit</label>
           <select id="fUnit">
-            <option>pcs</option>
-            <option>kg</option>
-            <option>g</option>
-            <option>L</option>
-            <option>mL</option>
-            <option>pack</option>
-            <option>box</option>
-            <option>can</option>
-            <option>bottle</option>
-            <option>bag</option>
+            <option>pcs</option><option>kg</option><option>g</option>
+            <option>L</option><option>mL</option><option>pack</option>
+            <option>box</option><option>can</option><option>bottle</option><option>bag</option>
           </select>
         </div>
         <div class="form-group">
@@ -161,19 +241,14 @@
         <div class="form-group">
           <label>Location</label>
           <select id="fLocation">
-            <option>Pantry</option>
-            <option>Refrigerator</option>
-            <option>Freezer</option>
-            <option>Counter</option>
-            <option>Cabinet</option>
+            <option>Pantry</option><option>Refrigerator</option>
+            <option>Freezer</option><option>Counter</option><option>Cabinet</option>
           </select>
         </div>
         <div class="form-group full">
           <label>Notes</label>
           <input type="text" id="fNotes" placeholder="Optional notes…" />
         </div>
-
-        <!-- Image Capture -->
         <div class="form-group full">
           <label>Item Photo</label>
           <div class="img-capture-area">
@@ -198,7 +273,7 @@
   </div>
 </div>
 
-<!-- QR Code Modal -->
+<!-- QR Modal -->
 <div class="modal-overlay" id="qrModal">
   <div class="modal" style="max-width:340px">
     <div class="modal-header">
@@ -209,9 +284,7 @@
       <div id="qrItemName" style="font-weight:700;font-size:1rem;margin-bottom:6px"></div>
       <div id="qrItemSub" style="font-size:0.78rem;color:var(--text-muted);margin-bottom:16px"></div>
       <canvas id="qrCanvas" style="border:1px solid var(--border);border-radius:8px;padding:8px"></canvas>
-      <p style="font-size:0.7rem;color:var(--text-muted);margin-top:12px">
-        Scan this code in the POS terminal to add this item to the cart.
-      </p>
+      <p style="font-size:0.7rem;color:var(--text-muted);margin-top:12px">Scan in POS terminal to add to cart.</p>
     </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeQRModal()">Close</button>
@@ -220,10 +293,10 @@
   </div>
 </div>
 
-<!-- Delete Confirm Modal -->
+<!-- Delete Confirm -->
 <div class="modal-overlay" id="confirmModal">
   <div class="confirm-modal">
-    <div class="icon">🗑️</div>
+    <span class="icon">🗑️</span>
     <h3>Delete Item?</h3>
     <p id="confirmText">This action cannot be undone.</p>
     <div class="confirm-btns">
@@ -233,6 +306,37 @@
   </div>
 </div>
 
+<!-- Import Confirm -->
+<div class="modal-overlay" id="importModal">
+  <div class="confirm-modal">
+    <span class="icon">⬆️</span>
+    <h3>Import Backup?</h3>
+    <p id="importConfirmText">This will replace your current data.</p>
+    <div class="confirm-btns">
+      <button class="btn btn-ghost" onclick="cancelImport()">Cancel</button>
+      <button class="btn btn-primary" onclick="confirmImport()">Import</button>
+    </div>
+  </div>
+</div>
+
+<div id="toastWrap" class="toast-wrap"></div>
+
 <script src="app.js"></script>
+<script>
+  function toggleSidebar() {
+    document.getElementById('sidebar').classList.toggle('open');
+    document.getElementById('sidebarOverlay').classList.toggle('show');
+  }
+  function closeSidebar() {
+    document.getElementById('sidebar').classList.remove('open');
+    document.getElementById('sidebarOverlay').classList.remove('show');
+  }
+  // Show store name in sidebar
+  (function() {
+    const s = JSON.parse(localStorage.getItem('grocery_pos_settings') || '{}');
+    const el = document.getElementById('sidebarStoreName');
+    if (el && s.storeName) el.textContent = s.storeName;
+  })();
+</script>
 </body>
 </html>

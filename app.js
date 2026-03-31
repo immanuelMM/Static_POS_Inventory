@@ -594,10 +594,83 @@ document.getElementById('qrModal').addEventListener('click', function(e) {
   if (e.target === this) closeQRModal();
 });
 
+document.getElementById('importModal').addEventListener('click', function(e) {
+  if (e.target === this) cancelImport();
+});
+
 // ── Keyboard: ESC closes modals ───────────────────────────
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') { closeModal(); closeConfirm(); closeQRModal(); }
+  if (e.key === 'Escape') { closeModal(); closeConfirm(); closeQRModal(); cancelImport(); }
 });
+
+// ── Export / Import data ──────────────────────────────────
+const HISTORY_KEY  = 'grocery_sales_history';
+const SETTINGS_KEY = 'grocery_pos_settings';
+
+function exportData() {
+  const payload = {
+    version:   1,
+    exportedAt: new Date().toISOString(),
+    inventory: JSON.parse(localStorage.getItem(STORAGE_KEY)  || '[]'),
+    sales:     JSON.parse(localStorage.getItem(HISTORY_KEY)  || '[]'),
+    settings:  JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}'),
+  };
+  const blob     = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  const url      = URL.createObjectURL(blob);
+  const link     = document.createElement('a');
+  link.href      = url;
+  link.download  = `grocery_backup_${new Date().toISOString().slice(0,10)}.json`;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+let _pendingImport = null;
+
+function importData(input) {
+  const file = input.files[0];
+  if (!file) return;
+  input.value = '';   // reset so same file can be re-selected
+
+  const reader = new FileReader();
+  reader.onload = e => {
+    let parsed;
+    try { parsed = JSON.parse(e.target.result); }
+    catch { alert('Invalid file — could not parse JSON.'); return; }
+
+    if (!parsed || !Array.isArray(parsed.inventory)) {
+      alert('Invalid backup file — missing inventory data.');
+      return;
+    }
+
+    const invCount   = parsed.inventory.length;
+    const salesCount = Array.isArray(parsed.sales) ? parsed.sales.length : 0;
+    document.getElementById('importConfirmText').textContent =
+      `Found ${invCount} inventory item${invCount !== 1 ? 's' : ''} and ${salesCount} sales record${salesCount !== 1 ? 's' : ''}. This will replace your current data.`;
+
+    _pendingImport = parsed;
+    document.getElementById('importModal').classList.add('open');
+  };
+  reader.readAsText(file);
+}
+
+function confirmImport() {
+  if (!_pendingImport) return;
+  localStorage.setItem(STORAGE_KEY,  JSON.stringify(_pendingImport.inventory));
+  if (Array.isArray(_pendingImport.sales))
+    localStorage.setItem(HISTORY_KEY,  JSON.stringify(_pendingImport.sales));
+  if (_pendingImport.settings && typeof _pendingImport.settings === 'object')
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(_pendingImport.settings));
+  _pendingImport = null;
+  document.getElementById('importModal').classList.remove('open');
+  loadItems();
+  renderItems();
+  updateStats();
+}
+
+function cancelImport() {
+  _pendingImport = null;
+  document.getElementById('importModal').classList.remove('open');
+}
 
 // ── Current date display ───────────────────────────────────
 function setCurrentDate() {
