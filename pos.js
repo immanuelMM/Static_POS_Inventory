@@ -143,13 +143,8 @@ function startScanner() {
     { facingMode: 'environment' },
     {
       fps: 15,
-      qrbox: { width: 280, height: 100 },
-      formatsToSupport: [
-        Html5QrcodeSupportedFormats.CODE_128,
-        Html5QrcodeSupportedFormats.CODE_39,
-        Html5QrcodeSupportedFormats.EAN_13,
-        Html5QrcodeSupportedFormats.EAN_8,
-      ],
+      qrbox: (w, h) => ({ width: Math.min(w - 40, 280), height: 100 }),
+      formatsToSupport: [5, 3, 9, 10], // CODE_128=5, CODE_39=3, EAN_13=9, EAN_8=10
     },
     onScanSuccess,
     () => {}

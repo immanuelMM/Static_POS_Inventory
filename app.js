@@ -563,21 +563,15 @@ function printQRLabel() {
   const sub     = document.getElementById('qrItemSub').textContent;
   const dataUrl = document.getElementById('qrCanvas').src;
   if (!dataUrl) return;
-  const win = window.open('', '_blank', 'width=380,height=320');
-  win.document.write(`<!DOCTYPE html><html><head><title>Barcode Label</title>
-    <style>
-      body { margin:0; display:flex; flex-direction:column; align-items:center;
-             justify-content:center; min-height:100vh; font-family:'Segoe UI',sans-serif; background:#fff; }
-      img  { width:260px; height:100px; object-fit:contain; }
-      .name{ font-weight:800; font-size:1rem; margin:8px 0 2px; text-align:center; }
-      .sub { font-size:0.75rem; color:#666; text-align:center; }
-    </style></head>
-    <body onload="window.print();window.close()">
+  const area = document.getElementById('printArea');
+  area.innerHTML = `
+    <div class="label-print">
       <img src="${dataUrl}" alt="Barcode"/>
-      <div class="name">${name.replace(/</g,'&lt;')}</div>
-      <div class="sub">${sub.replace(/</g,'&lt;')}</div>
-    </body></html>`);
-  win.document.close();
+      <div class="lname">${name.replace(/</g,'&lt;')}</div>
+      <div class="lsub">${sub.replace(/</g,'&lt;')}</div>
+    </div>`;
+  window.print();
+  setTimeout(() => { area.innerHTML = ''; }, 1000);
 }
 
 function printAllQRStickers() {
@@ -594,7 +588,7 @@ function printAllQRStickers() {
     const cat   = item.category.replace(/</g, '&lt;');
     return `
       <div class="sticker">
-        <img class="qr" src="${url}" alt="Barcode"/>
+        <img src="${url}" alt="Barcode"/>
         <div class="sname">${name}</div>
         <div class="scat">${cat}</div>
         ${price ? `<div class="sprice">${price}</div>` : ''}
@@ -602,42 +596,10 @@ function printAllQRStickers() {
       </div>`;
   }).join('');
 
-  const win = window.open('', '_blank');
-  win.document.write(`<!DOCTYPE html><html><head><title>QR Stickers</title>
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    @page { size: A4; margin: 10mm; }
-    body { font-family: 'Segoe UI', Arial, sans-serif; background: #fff; }
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 6mm;
-      width: 100%;
-    }
-    .sticker {
-      border: 1px dashed #aaa;
-      border-radius: 6px;
-      padding: 4mm;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 2mm;
-      page-break-inside: avoid;
-      background: #fff;
-    }
-    .qr { width: 100%; height: 18mm; object-fit: contain; display: block; }
-    .sname { font-weight: 800; font-size: 7.5pt; line-height: 1.2; text-align:center; word-break: break-word; }
-    .scat  { font-size: 6pt; color: #666; text-align:center; }
-    .sprice{ font-size: 9.5pt; font-weight: 900; color: #1b4332; text-align:center; }
-    .sid   { font-size: 5pt; color: #999; letter-spacing: 0.5px; font-family: monospace; text-align:center; }
-    @media print {
-      body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-    }
-  </style></head>
-  <body onload="window.print();window.close()">
-    <div class="grid">${rows}</div>
-  </body></html>`);
-  win.document.close();
+  const area = document.getElementById('printArea');
+  area.innerHTML = `<div class="sticker-grid">${rows}</div>`;
+  window.print();
+  setTimeout(() => { area.innerHTML = ''; }, 1000);
 }
 
 // ── Close modals on overlay click ─────────────────────────
@@ -684,13 +646,8 @@ function startInventoryScanner() {
     { facingMode: 'environment' },
     {
       fps: 15,
-      qrbox: { width: 280, height: 100 },
-      formatsToSupport: [
-        Html5QrcodeSupportedFormats.CODE_128,
-        Html5QrcodeSupportedFormats.CODE_39,
-        Html5QrcodeSupportedFormats.EAN_13,
-        Html5QrcodeSupportedFormats.EAN_8,
-      ],
+      qrbox: (w, h) => ({ width: Math.min(w - 40, 280), height: 100 }),
+      formatsToSupport: [5, 3, 9, 10], // CODE_128=5, CODE_39=3, EAN_13=9, EAN_8=10
     },
     onInventoryScan,
     () => {}

@@ -54,6 +54,41 @@
     .card-qr-print-btn:hover {
       border-color: var(--primary); color: var(--primary); background: #F0FDFA;
     }
+
+    /* ── Print area (mobile-safe: prints current page, no popup) ── */
+    .inv-print-area { display: none; }
+    @media print {
+      body > * { display: none !important; }
+      .inv-print-area {
+        display: block !important;
+        margin: 0; padding: 0;
+      }
+      /* Single label */
+      .inv-print-area .label-print {
+        display: flex; flex-direction: column; align-items: center;
+        padding: 8mm; font-family: 'Segoe UI', Arial, sans-serif;
+      }
+      .inv-print-area .label-print img  { width: 70mm; height: 26mm; object-fit: contain; }
+      .inv-print-area .label-print .lname { font-weight: 800; font-size: 11pt; margin-top: 3mm; text-align: center; }
+      .inv-print-area .label-print .lsub  { font-size: 8pt; color: #555; text-align: center; margin-top: 1mm; }
+      /* Sticker grid */
+      .inv-print-area .sticker-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 5mm; padding: 5mm;
+      }
+      .inv-print-area .sticker {
+        border: 1px dashed #aaa; border-radius: 4px; padding: 3mm;
+        display: flex; flex-direction: column; align-items: center; gap: 1.5mm;
+        page-break-inside: avoid; background: #fff;
+      }
+      .inv-print-area .sticker img   { width: 100%; height: 16mm; object-fit: contain; }
+      .inv-print-area .sticker .sname{ font-weight: 800; font-size: 7pt; text-align: center; word-break: break-word; }
+      .inv-print-area .sticker .scat { font-size: 6pt; color: #666; text-align: center; }
+      .inv-print-area .sticker .sprice{ font-size: 9pt; font-weight: 900; color: #1b4332; text-align: center; }
+      .inv-print-area .sticker .sid  { font-size: 5pt; color: #999; font-family: monospace; text-align: center; }
+      * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+    }
   </style>
 </head>
 <body>
@@ -390,6 +425,7 @@
 </div>
 
 <div id="toastWrap" class="toast-wrap"></div>
+<div id="printArea" class="inv-print-area"></div>
 
 <script src="app.js"></script>
 <script>
