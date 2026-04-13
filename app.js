@@ -186,9 +186,6 @@ function renderItems() {
       </div>`;
   }).join('');
 
-  // Generate + persist QR for any items that don't have one stored yet
-  list.filter(i => !i.qrDataUrl).forEach(i => generateAndStoreQR(i.id));
-
   updateStats();
 }
 
@@ -303,30 +300,28 @@ function saveItem() {
   if (!qty || qty <= 0) return alert('Please enter a valid quantity.');
   if (!expiry)          return alert('Please select an expiration date.');
 
-  let savedId;
   if (editingId) {
     const idx = items.findIndex(i => i.id === editingId);
     if (idx !== -1) {
-      items[idx] = { ...items[idx], name, category, qty, unit, expiry, location, notes, costPrice, retailPrice, image: currentImage || items[idx].image || null };
-      savedId = items[idx].id;
+      // Keep existing barcode; only regenerate if somehow missing
+      const qrDataUrl = items[idx].qrDataUrl || makeBarcodeDataUrl(editingId);
+      items[idx] = { ...items[idx], name, category, qty, unit, expiry, location, notes, costPrice, retailPrice, image: currentImage || items[idx].image || null, qrDataUrl };
     }
   } else {
+    const newId = 'item_' + Date.now() + '_' + Math.random().toString(36).slice(2,7);
     const newItem = {
-      id: 'item_' + Date.now() + '_' + Math.random().toString(36).slice(2,7),
+      id:           newId,
       name, category, qty, unit, expiry, location, notes, costPrice, retailPrice,
-      image: currentImage || null,
-      addedAt: Date.now()
+      image:        currentImage || null,
+      qrDataUrl:    makeBarcodeDataUrl(newId),  // generate synchronously before saving
+      addedAt:      Date.now()
     };
     items.push(newItem);
-    savedId = newItem.id;
   }
 
   saveItems();
   closeModal();
   renderItems();
-
-  // Auto-generate and persist QR code for this item
-  if (savedId) generateAndStoreQR(savedId);
 }
 
 // ── Barcode generation (JsBarcode — no conflict with html5-qrcode) ──
@@ -361,11 +356,17 @@ function generateAndStoreQR(itemId) {
   }
 }
 
-// Regenerate barcodes for all items (replaces any old QR data URLs too)
+// Generate barcodes for all items that don't have one yet
+// (also handles items imported from backup that may lack qrDataUrl)
 function generateMissingQRCodes() {
+  let changed = false;
   items.forEach(i => {
-    if (!i.qrDataUrl) generateAndStoreQR(i.id);
+    if (!i.qrDataUrl) {
+      i.qrDataUrl = makeBarcodeDataUrl(i.id);
+      changed = true;
+    }
   });
+  if (changed) saveItems();
 }
 
 // ── Delete ─────────────────────────────────────────────────
